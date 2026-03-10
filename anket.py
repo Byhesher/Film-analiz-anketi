@@ -75,7 +75,6 @@ with st.sidebar:
             st.session_state.secilen_listesi=[]
             st.session_state.rastgele_filmler=[]
             st.session_state.analiz_modu=False
-            st.experimental_rerun()
 
 temp_df = df[(df['IMDb_Rating']>=f_imdb)&(df['Runtime']<=f_sure)]
 
@@ -113,7 +112,6 @@ def afise_tikla(film_adi):
     if film_adi not in st.session_state.secilen_listesi:
         st.session_state.secilen_listesi.append(film_adi)
         yenile()
-        st.experimental_rerun()
 
 if st.session_state.analiz_modu:
     secilen_df = df[df['title'].isin(st.session_state.secilen_listesi)]
