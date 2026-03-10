@@ -12,7 +12,6 @@ st.markdown("""
     .css-1n76uvr { gap: 2px !important; } 
     .poster-container {position:relative; display:inline-block; margin-bottom:-10px;}
     .poster-label {position:absolute; top:0; left:0; background:rgba(255,0,0,0.6); color:white; font-weight:bold; padding:2px 6px; border-radius:4px;}
-    .image-button {padding:0; border:none; background:none; width:100%; height:100%; position:absolute; top:0; left:0; cursor:pointer;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -68,12 +67,16 @@ with st.sidebar:
     if count >= 20:
         if st.button("🚀 ANALİZİ BAŞLAT", use_container_width=True):
             st.session_state.analiz_modu = True
+    if st.button("🗑️ Seçilenleri Temizle", use_container_width=True):
+        st.session_state.secilen_listesi = []
+        st.session_state.rastgele_filmler = []
+        st.session_state.analiz_modu = False
 
 temp_df = df[(df['IMDb_Rating'] >= f_imdb) & (df['Runtime'] <= f_sure)]
 
 def yenile():
     if not st.session_state.secilen_listesi:
-        adaylar = temp_df[~temp_df['title'].isin(st.session_state.secilen_listesi)]
+        adaylar = temp_df.copy()
         st.session_state.rastgele_filmler = adaylar.sample(min(len(adaylar), 20)).to_dict('records')
         return
     secilen_df = df[df['title'].isin(st.session_state.secilen_listesi)]
@@ -112,53 +115,35 @@ if st.session_state.analiz_modu:
     imdb_avg = secilen_df['IMDb_Rating'].mean()
     runtime_avg = secilen_df['Runtime'].mean()
     adaylar = df[~df['title'].isin(st.session_state.secilen_listesi)].copy()
-
     def benzerlik(film):
         turler = set(str(film['genres']).split('|'))
         tur_skor = len(secilen_turler.intersection(turler)) / max(len(secilen_turler),1)
         imdb_skor = 1 - abs(film['IMDb_Rating'] - imdb_avg) / 10
         sure_skor = 1 - abs(film['Runtime'] - runtime_avg) / 160
         return 100 * (0.6 * tur_skor + 0.3 * imdb_skor + 0.1 * sure_skor)
-
     adaylar['Benzerlik'] = adaylar.apply(benzerlik, axis=1)
     adaylar = adaylar.sort_values('Benzerlik', ascending=False).head(20)
-
     def tavsiye(skor):
         if skor >= 84: return f"🔥 Kesinlikle izlemelisiniz (%{skor:.0f})"
         elif skor >= 70: return f"⭐ Kesinlikle izlemelisiniz (%{skor:.0f})"
         elif skor >= 50: return f"⭐ İzlemelisiniz (%{skor:.0f})"
         else: return f"🔹 Bakmaya değer (%{skor:.0f})"
-
     adaylar['Tavsiye Durumu'] = adaylar['Benzerlik'].apply(tavsiye)
     adaylar['Link'] = "https://www.imdb.com/title/tt" + adaylar['imdbId'].astype(str).str.zfill(7)
-
     st.header("🎯 Size Özel Film Önerileri")
     secilen_tur = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().idxmax()
     st.markdown(f'<div style="font-size:18px; font-weight:bold; background:rgba(255,0,0,0.6); color:white; padding:4px; border-radius:6px; width:fit-content;">Favori Tür: {secilen_tur}</div>', unsafe_allow_html=True)
-
     cols = st.columns(5, gap="small")
     for i, f in enumerate(adaylar.to_dict('records')):
         with cols[i%5]:
             poster_url = get_single_poster(f['imdbId'])
-            st.markdown(f'''
-            <div class="poster-container">
-                <form action="" method="post">
-                    <input type="submit" class="image-button" name="select_{f['movieId']}" value="">
-                </form>
-                <img src="{poster_url}" width="200">
-            </div>
-            ''', unsafe_allow_html=True)
-            if f['title'] not in st.session_state.secilen_listesi and st.button("", key=f"btn_{f['movieId']}", help=f"Seç: {f['title']}"):
-                afise_tikla(f['title'])
+            st.image(poster_url, width=200, use_column_width=False, output_format="PNG", caption=f"⭐ {f['IMDb_Rating']} | {f['Tavsiye Durumu']}", clamp=False, channels="RGB", format="auto", on_click=afise_tikla, args=(f['title'],))
             st.markdown(f"**{f['title']}**")
-            st.caption(f"⭐ {f['IMDb_Rating']} | {f['Tavsiye Durumu']}")
-
     st.header("📊 Sinema Kimliğiniz")
     t_c = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
     t_c.columns = ['Tür', 'Adet']
     fig = px.pie(t_c, values='Adet', names='Tür', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
     st.plotly_chart(fig, use_container_width=True)
-
 else:
     tab1, tab2 = st.tabs(["🎯 Film Seçimi", "📊 Profilim"])
     with tab1:
@@ -170,23 +155,14 @@ else:
         )
         for f in m_secim:
             afise_tikla(f)
-
         if st.button("🔄 Önerileri Yenile", use_container_width=True):
             yenile()
-
+        if st.button("🗑️ Seçilenleri Temizle"):
+            st.session_state.secilen_listesi = []
+            yenile()
         cols = st.columns(5, gap="small")
         for i, f in enumerate(st.session_state.rastgele_filmler):
             with cols[i % 5]:
                 poster_url = get_single_poster(f['imdbId'])
-                st.markdown(f'''
-                <div class="poster-container">
-                    <form action="" method="post">
-                        <input type="submit" class="image-button" name="select_{f['movieId']}" value="">
-                    </form>
-                    <img src="{poster_url}" width="200">
-                </div>
-                ''', unsafe_allow_html=True)
-                if f['title'] not in st.session_state.secilen_listesi and st.button("", key=f"poster_btn_{f['movieId']}", help=f"Seç: {f['title']}"):
-                    afise_tikla(f['title'])
+                st.image(poster_url, width=200, use_column_width=False, output_format="PNG", caption=f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk", clamp=False, channels="RGB", format="auto", on_click=afise_tikla, args=(f['title'],))
                 st.markdown(f"**{f['title']}**")
-                st.caption(f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk")
