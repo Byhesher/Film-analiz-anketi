@@ -9,8 +9,8 @@ st.set_page_config(page_title="Sinema Profil Analizi", layout="wide", page_icon=
 st.markdown("""
 <style>
     .css-1n76uvr {gap: 2px !important;}
-    .poster-card {position: relative; display: inline-block; text-align:center; margin-bottom: -10px;}
-    .poster-card img {cursor:pointer; width:180px;}
+    .poster-card {position: relative; display: inline-block; text-align:center; margin-bottom:-10px;}
+    .poster-card img {width:180px; cursor:pointer;}
     .poster-label {position:absolute; top:0; left:0; background:rgba(255,0,0,0.6); color:white; font-weight:bold; padding:2px 6px; border-radius:4px;}
 </style>
 """, unsafe_allow_html=True)
@@ -65,15 +65,17 @@ with st.sidebar:
     st.metric("Seçilen Film",f"{count} / 20")
     st.progress(min(count/20,1.0))
     st.markdown("<br>",unsafe_allow_html=True)
-    if count >= 20:
-        if st.button("🚀 ANALİZİ BAŞLAT",use_container_width=True):
-            st.session_state.analiz_modu=True
-    st.markdown("<br>",unsafe_allow_html=True)
-    if st.button("🗑️ Seçilenleri Temizle",use_container_width=True):
-        st.session_state.secilen_listesi=[]
-        st.session_state.rastgele_filmler=[]
-        st.session_state.analiz_modu=False
-        st.experimental_rerun()
+    col1, col2 = st.columns([1,1])
+    with col1:
+        if count >= 20:
+            if st.button("🚀 ANALİZİ BAŞLAT",use_container_width=True):
+                st.session_state.analiz_modu=True
+    with col2:
+        if st.button("🗑️ Clear Seçimler",use_container_width=True):
+            st.session_state.secilen_listesi=[]
+            st.session_state.rastgele_filmler=[]
+            st.session_state.analiz_modu=False
+            st.experimental_rerun()
 
 temp_df = df[(df['IMDb_Rating']>=f_imdb)&(df['Runtime']<=f_sure)]
 
@@ -90,7 +92,7 @@ def yenile():
     secilen_filmsayisi = min(20,len(adaylar))
     secilen_filmler=[]
     for _,row in tur_df.iterrows():
-        tur = row['Tür']
+        tur=row['Tür']
         agirlik=row['Ağırlık']
         n_sec=max(1,round(secilen_filmsayisi*agirlik))
         tur_aday=adaylar[adaylar['genres'].str.contains(tur,na=False)]
@@ -134,18 +136,18 @@ if st.session_state.analiz_modu:
         else: return f"🔹 Bakmaya değer (%{skor:.0f})"
     adaylar['Tavsiye Durumu']=adaylar['Benzerlik'].apply(tavsiye)
     adaylar['Link']="https://www.imdb.com/title/tt"+adaylar['imdbId'].astype(str).str.zfill(7)
+
     st.header("🎯 Size Özel Film Önerileri")
     secilen_tur = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().idxmax()
     st.markdown(f'<div style="font-size:18px;font-weight:bold;background:rgba(255,0,0,0.6);color:white;padding:4px;border-radius:6px;width:fit-content;">Favori Tür: {secilen_tur}</div>',unsafe_allow_html=True)
+
     cols = st.columns(5,gap="small")
     for i,f in enumerate(adaylar.to_dict('records')):
         with cols[i%5]:
             poster_url = get_single_poster(f['imdbId'])
-            st.image(poster_url,width=180,use_column_width=False,
-                     caption=f"⭐ {f['IMDb_Rating']} | {f['Tavsiye Durumu']}",
-                     output_format="PNG", clamp=False,
-                     channels="RGB", use_container_width=False,
-                     on_click=afise_tikla, args=(f['title'],))
+            if st.button("", key=f"poster_{f['movieId']}", on_click=afise_tikla, args=(f['title'],)):
+                pass
+            st.image(poster_url,width=180)
 
     st.header("📊 Sinema Kimliğiniz")
     t_c = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
@@ -167,17 +169,10 @@ else:
         if st.button("🔄 Önerileri Yenile",use_container_width=True):
             yenile()
         st.markdown("<br>",unsafe_allow_html=True)
-        if st.button("🗑️ Seçilenleri Temizle",use_container_width=True):
-            st.session_state.secilen_listesi=[]
-            st.session_state.rastgele_filmler=[]
-            st.session_state.analiz_modu=False
-            st.experimental_rerun()
         cols = st.columns(5,gap="small")
         for i,f in enumerate(st.session_state.rastgele_filmler):
             with cols[i%5]:
                 poster_url = get_single_poster(f['imdbId'])
-                st.image(poster_url,width=180,use_column_width=False,
-                         caption=f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk",
-                         output_format="PNG", clamp=False,
-                         channels="RGB", use_container_width=False,
-                         on_click=afise_tikla, args=(f['title'],))
+                if st.button("", key=f"poster_{f['movieId']}_select", on_click=afise_tikla, args=(f['title'],)):
+                    pass
+                st.image(poster_url,width=180)
