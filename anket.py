@@ -10,7 +10,9 @@ st.markdown("""
 <style>
     .stImage img { margin-bottom: -10px !important; cursor: pointer; }
     .css-1n76uvr {gap: 4px !important;} 
-    .image-button {padding:0; border:none; background:none;}
+    .image-button {padding:0; border:none; background:none; width:100%; height:100%; position:absolute; top:0; left:0; cursor:pointer;}
+    .poster-container {position:relative; display:inline-block;}
+    .poster-label {position:absolute; top:0; left:0; background:rgba(255,0,0,0.6); color:white; font-weight:bold; padding:2px 6px; border-radius:4px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -126,14 +128,24 @@ if st.session_state.analiz_modu:
     adaylar['Link'] = "https://www.imdb.com/title/tt" + adaylar['imdbId'].astype(str).str.zfill(7)
 
     st.header("🎯 Size Özel Film Önerileri")
-    st.dataframe(adaylar[['title','IMDb_Rating','Tavsiye Durumu','Link']].reset_index(drop=True), use_container_width=True)
+    secilen_tur = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().idxmax()
+    st.markdown(f'<div style="font-size:18px; font-weight:bold; background:rgba(255,0,0,0.6); color:white; padding:4px; border-radius:6px; width:fit-content;">Favori Tür: {secilen_tur}</div>', unsafe_allow_html=True)
 
-    st.header("✨ Sinema Kimliğiniz")
+    cols = st.columns(5, gap="small")
+    for i, f in enumerate(adaylar.to_dict('records')):
+        with cols[i%5]:
+            poster_url = get_single_poster(f['imdbId'])
+            if st.button(" ", key=f"btn_{f['movieId']}", help=f"Seç: {f['title']}"):
+                st.session_state.secilen_listesi.append(f['title'])
+            st.markdown(f'<div class="poster-container"><img src="{poster_url}" width="200"></div>', unsafe_allow_html=True)
+            st.markdown(f"**{f['title']}**")
+            st.caption(f"⭐ {f['IMDb_Rating']} | {f['Tavsiye Durumu']}")
+
+    st.header("📊 Sinema Kimliğiniz")
     t_c = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
     t_c.columns = ['Tür', 'Adet']
     fig = px.pie(t_c, values='Adet', names='Tür', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
     st.plotly_chart(fig, use_container_width=True)
-    st.info(f"Favori türünüz: **{t_c.iloc[0]['Tür']}**. Bu türe ait filmler profilinizin %{int(t_c.iloc[0]['Adet']/t_c['Adet'].sum()*100)}'ini oluşturuyor.")
 
 else:
     tab1, tab2 = st.tabs(["🎯 Film Seçimi", "📊 Profilim"])
@@ -159,8 +171,8 @@ else:
         for i, f in enumerate(st.session_state.rastgele_filmler):
             with cols[i % 5]:
                 poster_url = get_single_poster(f['imdbId'])
-                if st.button(f"{f['title']}", key=f"poster_btn_{f['movieId']}", help=f"Seç: {f['title']}", args=None):
+                if st.button(" ", key=f"poster_btn_{f['movieId']}", help=f"Seç: {f['title']}"):
                     ekle_film(f['title'])
-                st.image(poster_url, width=200)
-                st.markdown(f"**{f['title']}**", unsafe_allow_html=True)
+                st.markdown(f'<div class="poster-container"><img src="{poster_url}" width="200"></div>', unsafe_allow_html=True)
+                st.markdown(f"**{f['title']}**")
                 st.caption(f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk")
