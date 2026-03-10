@@ -14,7 +14,6 @@ def verileri_yukle():
     df_l = pd.read_csv(z.open('ml-latest-small/links.csv'))
     df_r = pd.read_csv(z.open('ml-latest-small/ratings.csv'))
     
-  
     def temizle(title):
         match = re.search(r'^(.*),\s(The|A|An)\s(\(\d{4}\))$', title)
         if match:
@@ -23,12 +22,9 @@ def verileri_yukle():
 
     df_m['title'] = df_m['title'].apply(temizle)
     df = df_m.merge(df_l[['movieId', 'imdbId']], on='movieId')
-    
-  
     stats = df_r.groupby('movieId').agg({'rating': ['mean', 'count']}).reset_index()
     stats.columns = ['movieId', 'IMDb_Rating', 'Votes']
     df = df.merge(stats, on='movieId')
-    
     df['IMDb_Rating'] = (df['IMDb_Rating'] * 2).round(1)
     df['Year'] = df['title'].str.extract(r'\((\d{4})\)').fillna(0).astype(int)
     return df
@@ -67,7 +63,6 @@ def kurulum_ekrani():
             onerileri_guncelle()
             st.rerun()
 
-
 if 'kurulum_tamam' not in st.session_state: st.session_state.kurulum_tamam = False
 if 'secilen_listesi' not in st.session_state: st.session_state.secilen_listesi = []
 if 'rastgele_filmler' not in st.session_state: st.session_state.rastgele_filmler = []
@@ -76,16 +71,22 @@ if not st.session_state.kurulum_tamam:
     kurulum_ekrani()
     st.stop()
 
-
 st.title("🎥 Film Seçim Paneli")
 st.markdown("### ✨ Favori filmlerini listene ekle!")
 
 arama_havuzu = df.sort_values('Votes', ascending=False)['title'].tolist()
-st.session_state.secilen_listesi = st.multiselect(
-    "🔍 Film Ara:", options=arama_havuzu, 
+
+secilenler = st.multiselect(
+    "🔍 Film Ara ve Listene Ekle:", 
+    options=arama_havuzu, 
     default=st.session_state.secilen_listesi,
-    placeholder="Film ismi yaz..."
+    key="ana_arama_cubugu",
+    placeholder="Film ismi yazın..."
 )
+
+if secilenler != st.session_state.secilen_listesi:
+    st.session_state.secilen_listesi = secilenler
+    st.rerun()
 
 st.divider()
 c1, c2 = st.columns([3, 1])
@@ -94,28 +95,29 @@ if c2.button("🔄 Listeyi Yenile", use_container_width=True):
     onerileri_guncelle()
     st.rerun()
 
-
 cols = st.columns(4)
 for i, film in enumerate(st.session_state.rastgele_filmler):
     with cols[i % 4]:
         with st.container(border=True):
             st.write(f"**{film['title']}**")
             st.caption(f"⭐ {film['IMDb_Rating']} | 📅 {film['Year']}")
-            if st.button("Seç ✅", key=f"f_{film['movieId']}"):
-                if film['title'] not in st.session_state.secilen_listesi:
+            if film['title'] in st.session_state.secilen_listesi:
+                st.button("Eklendi ✅", key=f"f_{film['movieId']}", disabled=True, use_container_width=True)
+            else:
+                if st.button("Seç ✅", key=f"f_{film['movieId']}", use_container_width=True):
                     st.session_state.secilen_listesi.append(film['title'])
-                    # Yerine benzer türde yeni film koy
                     ana_tur = film['genres'].split('|')[0]
                     yeni = df[df['genres'].str.contains(ana_tur) & (~df['title'].isin(st.session_state.secilen_listesi))].sample(1).iloc[0].to_dict()
                     st.session_state.rastgele_filmler[i] = yeni
                     st.rerun()
 
-
 count = len(st.session_state.secilen_listesi)
+st.sidebar.title("📊 İlerleme")
 st.sidebar.metric("Seçilen Film", f"{count} / 20")
 st.sidebar.progress(min(count/20, 1.0))
 
 if count >= 20:
+    st.sidebar.success("Analiz hazır!")
     if st.sidebar.button("🚀 Profilimi Analiz Et", use_container_width=True):
         st.balloons()
         secilen_df = df[df['title'].isin(st.session_state.secilen_listesi)]
