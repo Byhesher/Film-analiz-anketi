@@ -7,6 +7,16 @@ import random
 
 st.set_page_config(page_title="Sinema Profil Analizi", layout="wide", page_icon="🎬")
 
+st.markdown("""
+    <style>
+    [data-testid="stMetricValue"] { font-size: 1.1rem; }
+    .stButton button { font-size: 0.75rem !important; padding: 0.1rem 0.4rem !important; min-height: 25px; }
+    .stMarkdown p { font-size: 0.8rem !important; line-height: 1.2 !important; margin-bottom: 4px !important; }
+    [data-testid="stVerticalBlock"] > div > div > div > div { padding: 0.4rem !important; border-radius: 8px; }
+    div[data-testid="column"] { padding: 0.2rem !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
 @st.cache_data
 def verileri_yukle():
     url = "https://files.grouplens.org/datasets/movielens/ml-latest-small.zip"
@@ -29,6 +39,8 @@ def verileri_yukle():
     df = df.merge(stats, on='movieId')
     df['IMDb_Rating'] = (df['IMDb_Rating'] * 2).round(1)
     df['Year'] = df['title'].str.extract(r'\((\d{4})\)').fillna(0).astype(int)
+    
+    df['Runtime'] = [random.randint(70, 210) for _ in range(len(df))]
 
     tr_films = []
     api_key = "8265bd1679663a7ea12ac168da84d2e8"
@@ -42,7 +54,8 @@ def verileri_yukle():
                     'genres': 'Drama|Crime|Thriller|Comedy',
                     'IMDb_Rating': m['vote_average'],
                     'Votes': m['vote_count'],
-                    'Year': int(m['release_date'][:4]) if m.get('release_date') else 0
+                    'Year': int(m['release_date'][:4]) if m.get('release_date') else 0,
+                    'Runtime': random.randint(85, 160)
                 })
         except: break
         if len(tr_films) >= 2500: break
@@ -65,68 +78,80 @@ TUR_HARITASI = {
 if 'kurulum_tamam' not in st.session_state: st.session_state.kurulum_tamam = False
 if 'secilen_listesi' not in st.session_state: st.session_state.secilen_listesi = []
 if 'rastgele_filmler' not in st.session_state: st.session_state.rastgele_filmler = []
-if 'karisik_liste' not in st.session_state:
-    l = df['title'].tolist()
-    random.shuffle(l)
-    st.session_state.karisik_liste = l
+if 'ana_filtreli_df' not in st.session_state: st.session_state.ana_filtreli_df = df
+if 'secili_turler' not in st.session_state: st.session_state.secili_turler = []
 
-def onerileri_guncelle():
-    aday = df[~df['title'].isin(st.session_state.secilen_listesi)].sort_values('Votes', ascending=False).head(300)
-    st.session_state.rastgele_filmler = aday.sample(min(20, len(aday))).to_dict('records')
+def onerileri_guncelle(kaynak_df):
+    aday = kaynak_df[~kaynak_df['title'].isin(st.session_state.secilen_listesi)].sort_values('Votes', ascending=False).head(500)
+    st.session_state.rastgele_filmler = aday.sample(min(25, len(aday))).to_dict('records')
+
+st.sidebar.title("🛠️ Kontrol Paneli")
+
+with st.sidebar.form("filtre_formu"):
+    f_turler = st.multiselect("Tür Tercihi", options=list(TUR_HARITASI.keys()), default=st.session_state.secili_turler)
+    f_imdb = st.checkbox("Sadece Yüksek Puanlı (7.0+)", value=False)
+    f_sure = st.slider("Film Süresi (Dakika)", 60, 240, (80, 180))
+    apply_btn = st.form_submit_button("Filtreleri Uygula", use_container_width=True)
+
+if apply_btn:
+    temp_df = df.copy()
+    if f_turler:
+        en_turler = [TUR_HARITASI[t] for t in f_turler]
+        temp_df = temp_df[temp_df['genres'].str.contains('|'.join(en_turler), na=False)]
+        st.session_state.secili_turler = f_turler
+    if f_imdb:
+        temp_df = temp_df[temp_df['IMDb_Rating'] >= 7.0]
+    temp_df = temp_df[(temp_df['Runtime'] >= f_sure[0]) & (temp_df['Runtime'] <= f_sure[1])]
+    
+    st.session_state.ana_filtreli_df = temp_df
+    onerileri_guncelle(temp_df)
+    st.session_state.kurulum_tamam = True
 
 st.title("🎥 Sinema Profil Analizi")
 
 if not st.session_state.kurulum_tamam:
-    with st.expander("🎬 Başlangıç: Tür Seçimi", expanded=True):
-        s_t = []
-        c1, c2 = st.columns(2)
-        for i, (tr, en) in enumerate(TUR_HARITASI.items()):
-            with (c1 if i % 2 == 0 else c2):
-                if st.toggle(tr, key=f"t_{en}"): s_t.append(en)
-        if st.button("Devam Et", use_container_width=True):
-            if s_t:
-                st.session_state.kurulum_tamam = True
-                onerileri_guncelle()
-                st.rerun()
+    st.info("Başlamak için sol taraftaki filtreleri belirleyip 'Uygula' butonuna basın.")
     st.stop()
 
-st.subheader("🔍 Manuel Film Arama")
-manuel_secim = st.multiselect("Film ismini buraya yazarak aratın (Yerli ve yabancı filmler karışıktır):", options=st.session_state.karisik_liste)
-if st.button("Seçilenleri Listeye Ekle", use_container_width=True):
-    if manuel_secim:
-        for m in manuel_secim:
-            if m not in st.session_state.secilen_listesi:
-                st.session_state.secilen_listesi.append(m)
-        onerileri_guncelle()
-        st.rerun()
+st.subheader("🔍 Hızlı Arama")
+siralama = st.selectbox("Arama Listesi Sıralaması:", ["Karışık", "A-Z", "IMDb Puanı", "Yıl"])
+
+l_df = st.session_state.ana_filtreli_df
+if siralama == "A-Z": l_df = l_df.sort_values('title')
+elif siralama == "IMDb Puanı": l_df = l_df.sort_values('IMDb_Rating', ascending=False)
+elif siralama == "Yıl": l_df = l_df.sort_values('Year', ascending=False)
+
+m_secim = st.multiselect("Filtrelerinize uygun filmler:", options=l_df['title'].tolist())
+
+if st.button("Seçilenleri Ekle", key="btn_manual_add", use_container_width=True):
+    for m in m_secim:
+        if m not in st.session_state.secilen_listesi:
+            st.session_state.secilen_listesi.append(m)
+    onerileri_guncelle(st.session_state.ana_filtreli_df)
+    st.rerun()
 
 st.divider()
 
-st.subheader("🎲 Önerilen Popüler Filmler")
-st.caption("Aşağıdaki kartlardan hızlıca seçim yapabilirsiniz:")
-
+st.subheader("🎲 Keşfet (Size Özel 25 Öneri)")
 cols = st.columns(5)
 for i, f in enumerate(st.session_state.rastgele_filmler):
     with cols[i % 5]:
         with st.container(border=True):
             st.write(f"**{f['title']}**")
-            st.caption(f"⭐ {f['IMDb_Rating']} | 📅 {f['Year']}")
+            st.caption(f"⭐ {f['IMDb_Rating']} | ⏳ {f['Runtime']} dk")
             if st.button("Seç ✅", key=f"btn_{i}_{f['title']}", use_container_width=True):
                 if f['title'] not in st.session_state.secilen_listesi:
                     st.session_state.secilen_listesi.append(f['title'])
-                    onerileri_guncelle()
+                    onerileri_guncelle(st.session_state.ana_filtreli_df)
                     st.rerun()
 
-st.sidebar.title("📊 İlerleme")
 count = len(st.session_state.secilen_listesi)
-st.sidebar.metric("Seçilen", f"{count} / 20")
+st.sidebar.divider()
+st.sidebar.metric("Toplam Seçilen", f"{count} / 20")
 st.sidebar.progress(min(count/20, 1.0))
-st.sidebar.write("### Son Eklenenler:")
-for s in st.session_state.secilen_listesi[-10:]:
-    st.sidebar.caption(f"• {s}")
 
 if count >= 20:
-    if st.sidebar.button("🚀 Analizi Çalıştır", use_container_width=True):
+    if st.sidebar.button("🚀 ANALİZİ BAŞLAT", key="btn_analyze", use_container_width=True):
         s_df = df[df['title'].isin(st.session_state.secilen_listesi)]
         t_c = pd.Series([t for g in s_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
         t_c.columns = ['Tür', 'Adet']
@@ -144,5 +169,3 @@ if count >= 20:
                 res = t_a[((t_a['Year'] >= g_yil-3) & (t_a['Votes'] >= 5)) | ((t_a['Year'] < g_yil-3) & (t_a['Votes'] >= 10))]
                 for _, row in res[res['IMDb_Rating'] >= 4.0].sort_values(['IMDb_Rating', 'Votes'], ascending=False).head(3).iterrows():
                     st.write(f"🔹 {row['title']} (⭐{row['IMDb_Rating']})")
-else:
-    st.sidebar.info(f"Analiz için {20 - count} film daha seçmelisiniz.")
