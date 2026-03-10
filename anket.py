@@ -9,10 +9,10 @@ st.set_page_config(page_title="Sinema Profil Analizi", layout="wide", page_icon=
 st.markdown("""
 <style>
     .stImage img { margin-bottom: -10px !important; cursor: pointer; }
-    .css-1n76uvr {gap: 4px !important;} 
-    .image-button {padding:0; border:none; background:none; width:100%; height:100%; position:absolute; top:0; left:0; cursor:pointer;}
-    .poster-container {position:relative; display:inline-block;}
+    .css-1n76uvr { gap: 2px !important; } 
+    .poster-container {position:relative; display:inline-block; margin-bottom:-10px;}
     .poster-label {position:absolute; top:0; left:0; background:rgba(255,0,0,0.6); color:white; font-weight:bold; padding:2px 6px; border-radius:4px;}
+    .image-button {padding:0; border:none; background:none; width:100%; height:100%; position:absolute; top:0; left:0; cursor:pointer;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -101,6 +101,11 @@ def yenile():
 if not st.session_state.rastgele_filmler:
     yenile()
 
+def afise_tikla(film_adi):
+    if film_adi not in st.session_state.secilen_listesi:
+        st.session_state.secilen_listesi.append(film_adi)
+        yenile()
+
 if st.session_state.analiz_modu:
     secilen_df = df[df['title'].isin(st.session_state.secilen_listesi)]
     secilen_turler = set(t for g in secilen_df['genres'].dropna() for t in g.split('|'))
@@ -135,9 +140,16 @@ if st.session_state.analiz_modu:
     for i, f in enumerate(adaylar.to_dict('records')):
         with cols[i%5]:
             poster_url = get_single_poster(f['imdbId'])
-            if st.button(" ", key=f"btn_{f['movieId']}", help=f"Seç: {f['title']}"):
-                st.session_state.secilen_listesi.append(f['title'])
-            st.markdown(f'<div class="poster-container"><img src="{poster_url}" width="200"></div>', unsafe_allow_html=True)
+            st.markdown(f'''
+            <div class="poster-container">
+                <form action="" method="post">
+                    <input type="submit" class="image-button" name="select_{f['movieId']}" value="">
+                </form>
+                <img src="{poster_url}" width="200">
+            </div>
+            ''', unsafe_allow_html=True)
+            if f['title'] not in st.session_state.secilen_listesi and st.button("", key=f"btn_{f['movieId']}", help=f"Seç: {f['title']}"):
+                afise_tikla(f['title'])
             st.markdown(f"**{f['title']}**")
             st.caption(f"⭐ {f['IMDb_Rating']} | {f['Tavsiye Durumu']}")
 
@@ -150,11 +162,6 @@ if st.session_state.analiz_modu:
 else:
     tab1, tab2 = st.tabs(["🎯 Film Seçimi", "📊 Profilim"])
     with tab1:
-        def ekle_film(film_adi):
-            if film_adi not in st.session_state.secilen_listesi:
-                st.session_state.secilen_listesi.append(film_adi)
-                yenile()
-
         m_secim = st.multiselect(
             "Film Ara ve Ekle:",
             options=temp_df['title'].tolist(),
@@ -162,7 +169,7 @@ else:
             key="m_secim"
         )
         for f in m_secim:
-            ekle_film(f)
+            afise_tikla(f)
 
         if st.button("🔄 Önerileri Yenile", use_container_width=True):
             yenile()
@@ -171,8 +178,15 @@ else:
         for i, f in enumerate(st.session_state.rastgele_filmler):
             with cols[i % 5]:
                 poster_url = get_single_poster(f['imdbId'])
-                if st.button(" ", key=f"poster_btn_{f['movieId']}", help=f"Seç: {f['title']}"):
-                    ekle_film(f['title'])
-                st.markdown(f'<div class="poster-container"><img src="{poster_url}" width="200"></div>', unsafe_allow_html=True)
+                st.markdown(f'''
+                <div class="poster-container">
+                    <form action="" method="post">
+                        <input type="submit" class="image-button" name="select_{f['movieId']}" value="">
+                    </form>
+                    <img src="{poster_url}" width="200">
+                </div>
+                ''', unsafe_allow_html=True)
+                if f['title'] not in st.session_state.secilen_listesi and st.button("", key=f"poster_btn_{f['movieId']}", help=f"Seç: {f['title']}"):
+                    afise_tikla(f['title'])
                 st.markdown(f"**{f['title']}**")
                 st.caption(f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk")
