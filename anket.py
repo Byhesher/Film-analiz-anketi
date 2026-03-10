@@ -31,8 +31,9 @@ def verileri_yukle():
 
     tr_films = []
     api_key = "8265bd1679663a7ea12ac168da84d2e8"
+    # language=tr-TR parametresi ile Türkçe isimleri zorunlu kılıyoruz
     for page in range(1, 151):
-        tr_url = f"https://api.themoviedb.org/3/discover/movie?api_key={api_key}&with_original_language=tr&page={page}&sort_by=vote_count.desc"
+        tr_url = f"https://api.themoviedb.org/3/discover/movie?api_key={api_key}&with_original_language=tr&language=tr-TR&page={page}&sort_by=vote_count.desc"
         try:
             data = requests.get(tr_url).json().get('results', [])
             for m in data:
@@ -123,11 +124,11 @@ for i, f in enumerate(st.session_state.rastgele_filmler):
                 onerileri_guncelle(); st.rerun()
 
 st.sidebar.title("📊 İlerleme")
-cnt = len(st.session_state.secilen_listesi)
-st.sidebar.metric("Film Sayısı", f"{cnt} / 20")
-st.sidebar.progress(min(cnt/20, 1.0))
+count = len(st.session_state.secilen_listesi)
+st.sidebar.metric("Film Sayısı", f"{count} / 20")
+st.sidebar.progress(min(count/20, 1.0))
 
-if cnt >= 20:
+if count >= 20:
     if st.sidebar.button("🚀 Analiz Et", use_container_width=True):
         s_df = df[df['title'].isin(st.session_state.secilen_listesi)]
         t_c = pd.Series([t for g in s_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
@@ -146,3 +147,5 @@ if cnt >= 20:
                 res = t_a[((t_a['Year'] >= g_yil-3) & (t_a['Votes'] >= 5)) | ((t_a['Year'] < g_yil-3) & (t_a['Votes'] >= 10))]
                 for _, row in res[res['IMDb_Rating'] >= 4.0].sort_values(['IMDb_Rating', 'Votes'], ascending=False).head(3).iterrows():
                     st.write(f"🔹 {row['title']} (⭐{row['IMDb_Rating']})")
+else:
+    st.sidebar.warning(f"Analiz için {20 - count} film daha lazım.")
