@@ -136,9 +136,12 @@ if st.session_state.analiz_modu:
     for i, f in enumerate(adaylar.to_dict('records')):
         with cols[i%5]:
             poster_url = get_single_poster(f['imdbId'])
-            st.image(poster_url, width=200, use_column_width=False, output_format="PNG",
+            st.image(poster_url, width=200, use_column_width=False,
                      caption=f"⭐ {f['IMDb_Rating']} | {f['Tavsiye Durumu']}",
-                     on_click=afise_tikla, args=(f['title'],))
+                     output_format="PNG",
+                     channels="RGB",
+                     on_click=afise_tikla,
+                     args=(f['title'],))
     st.header("📊 Sinema Kimliğiniz")
     t_c = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
     t_c.columns = ['Tür', 'Adet']
@@ -165,6 +168,9 @@ else:
         for i, f in enumerate(st.session_state.rastgele_filmler):
             with cols[i % 5]:
                 poster_url = get_single_poster(f['imdbId'])
-                st.image(poster_url, width=200, use_column_width=False, output_format="PNG",
+                st.image(poster_url, width=200, use_column_width=False,
                          caption=f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk",
-                         on_click=afise_tikla, args=(f['title'],))
+                         output_format="PNG",
+                         channels="RGB",
+                         on_click=afise_tikla,
+                         args=(f['title'],))
