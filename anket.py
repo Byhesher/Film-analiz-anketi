@@ -17,21 +17,8 @@ div[data-testid="stVerticalBlock"] > div > div > div > div { padding:0.4rem !imp
 """, unsafe_allow_html=True)
 
 @st.cache_data
-def tmdb_poster_getir(imdb_id):
-    try:
-        url=f"https://api.themoviedb.org/3/find/tt{str(imdb_id).zfill(7)}?api_key=8265bd1679663a7ea12ac168da84d2e8&external_source=imdb_id"
-        data=requests.get(url).json()
-        results=data.get("movie_results",[])
-        if results:
-            poster=results[0].get("poster_path")
-            if poster:
-                return "https://image.tmdb.org/t/p/w500"+poster
-    except:
-        pass
-    return "https://via.placeholder.com/300x450?text=Poster"
-
-@st.cache_data
 def verileri_yukle():
+
     url="https://files.grouplens.org/datasets/movielens/ml-latest-small.zip"
     r=requests.get(url)
     z=zipfile.ZipFile(io.BytesIO(r.content))
@@ -49,42 +36,55 @@ def verileri_yukle():
     df_m['title']=df_m['title'].apply(temizle)
 
     df=df_m.merge(df_l[['movieId','imdbId']],on='movieId')
+
     stats=df_r.groupby('movieId').agg({'rating':['mean','count']}).reset_index()
     stats.columns=['movieId','IMDb_Rating','Votes']
     df=df.merge(stats,on='movieId')
 
     df['IMDb_Rating']=(df['IMDb_Rating']*2).round(1)
+
     df['Year']=df['title'].str.extract(r'\((\d{4})\)').fillna(0).astype(int)
+
     df['Runtime']=[random.randint(75,185) for _ in range(len(df))]
 
-    posters=[]
-    for imdb in df['imdbId']:
-        posters.append(tmdb_poster_getir(imdb))
-
-    df['poster']=posters
-
-    tr_films=[]
-    api_key="8265bd1679663a7ea12ac168da84d2e8"
-
-    for page in range(1,15):
-        tr_url=f"https://api.themoviedb.org/3/discover/movie?api_key={api_key}&with_original_language=tr&language=tr-TR&page={page}&sort_by=vote_count.desc"
+    def poster_getir(imdb_id):
         try:
-            data=requests.get(tr_url).json().get('results',[])
-            for m in data:
-                poster="https://image.tmdb.org/t/p/w500"+m['poster_path'] if m.get('poster_path') else "https://via.placeholder.com/300x450?text=Poster"
-                tr_films.append({
-                    'title':f"{m['title']} ({m['release_date'][:4]})" if m.get('release_date') else m['title'],
-                    'genres':'Drama|Crime|Thriller|Comedy',
-                    'IMDb_Rating':m['vote_average'],
-                    'Votes':m['vote_count'],
-                    'Year':int(m['release_date'][:4]) if m.get('release_date') else 0,
-                    'Runtime':random.randint(90,150),
-                    'poster':poster
-                })
+            url=f"https://api.themoviedb.org/3/find/tt{str(imdb_id).zfill(7)}?api_key=8265bd1679663a7ea12ac168da84d2e8&external_source=imdb_id"
+            data=requests.get(url).json()
+            res=data.get("movie_results",[])
+            if res:
+                p=res[0].get("poster_path")
+                if p:
+                    return "https://image.tmdb.org/t/p/w500"+p
         except:
-            break
+            pass
+        return "https://via.placeholder.com/300x450?text=Poster"
+
+    df['poster']=[poster_getir(i) for i in df['imdbId']]
+
+    api_key="8265bd1679663a7ea12ac168da84d2e8"
+    tr_films=[]
+
+    tr_url=f"https://api.themoviedb.org/3/discover/movie?api_key={api_key}&with_original_language=tr&language=tr-TR&page=1&sort_by=vote_count.desc"
+
+    try:
+        data=requests.get(tr_url).json().get('results',[])
+        for m in data:
+            poster="https://image.tmdb.org/t/p/w500"+m['poster_path'] if m.get('poster_path') else "https://via.placeholder.com/300x450?text=Poster"
+            tr_films.append({
+                'title':f"{m['title']} ({m['release_date'][:4]})" if m.get('release_date') else m['title'],
+                'genres':'Drama|Crime|Thriller|Comedy',
+                'IMDb_Rating':m['vote_average'],
+                'Votes':m['vote_count'],
+                'Year':int(m['release_date'][:4]) if m.get('release_date') else 0,
+                'Runtime':random.randint(90,150),
+                'poster':poster
+            })
+    except:
+        pass
 
     df=pd.concat([df,pd.DataFrame(tr_films)],ignore_index=True).drop_duplicates('title')
+
     return df
 
 df=verileri_yukle()
@@ -107,14 +107,15 @@ TUR_HARITASI={
 if 'secilen_listesi' not in st.session_state:
     st.session_state.secilen_listesi=[]
 
-if 'rastgele_filmler' not in st.session_state:
-    st.session_state.rastgele_filmler=df[df['IMDb_Rating']>=6.0].sample(25).to_dict('records')
-
 def onerileri_guncelle(kaynak_df):
+
     aday=kaynak_df[~kaynak_df['title'].isin(st.session_state.secilen_listesi)]
     aday=aday[aday['IMDb_Rating']>=6.0]
+
     if len(aday)>=25:
         st.session_state.rastgele_filmler=aday.sample(25).to_dict('records')
+    else:
+        st.session_state.rastgele_filmler=aday.sample(len(aday)).to_dict('records')
 
 st.markdown("<h1 style='font-size:90%;'>🎥 Sinema Profil Analizi</h1>",unsafe_allow_html=True)
 
@@ -123,26 +124,38 @@ st.write("### 🎭 Tür Seçimi")
 secili_tur_tr=st.pills("Türler",options=list(TUR_HARITASI.keys()),default="Hepsi",selection_mode="single")
 
 with st.sidebar:
+
     st.header("🛠️ Filtreler")
+
     f_imdb=st.slider("Minimum IMDb",0.0,10.0,6.0)
+
     f_sure=st.slider("Maksimum Süre (dk)",60,240,180)
 
-    temp_df=df.copy()
+temp_df=df.copy()
 
-    if secili_tur_tr!="Hepsi":
-        temp_df=temp_df[temp_df['genres'].str.contains(TUR_HARITASI[secili_tur_tr],na=False)]
+if secili_tur_tr!="Hepsi":
+    temp_df=temp_df[temp_df['genres'].str.contains(TUR_HARITASI[secili_tur_tr],na=False)]
 
-    temp_df=temp_df[(temp_df['IMDb_Rating']>=f_imdb)&(temp_df['Runtime']<=f_sure)]
+temp_df=temp_df[(temp_df['IMDb_Rating']>=f_imdb)&(temp_df['Runtime']<=f_sure)]
+
+if 'rastgele_filmler' not in st.session_state:
+    onerileri_guncelle(temp_df)
+
+onerileri_guncelle(temp_df)
 
 st.subheader("🔍 Hızlı Arama")
 
 m_secim=st.multiselect("Film ara:",options=temp_df['title'].tolist())
 
 if st.button("Seçilenleri Ekle",key="manual_add",use_container_width=True):
+
     for m in m_secim:
+
         if m not in st.session_state.secilen_listesi:
             st.session_state.secilen_listesi.append(m)
+
     onerileri_guncelle(temp_df)
+
     st.rerun()
 
 st.divider()
@@ -158,7 +171,8 @@ for i,f in enumerate(st.session_state.rastgele_filmler):
         with st.container(border=True):
 
             poster=f.get("poster")
-            if not poster or poster==0:
+
+            if not poster:
                 poster="https://via.placeholder.com/300x450?text=Poster"
 
             st.image(poster,use_container_width=True)
@@ -170,8 +184,11 @@ for i,f in enumerate(st.session_state.rastgele_filmler):
             if st.button("Seç ✅",key=f"btn_{i}_{f['title']}",use_container_width=True):
 
                 if f['title'] not in st.session_state.secilen_listesi:
+
                     st.session_state.secilen_listesi.append(f['title'])
+
                     onerileri_guncelle(temp_df)
+
                     st.rerun()
 
 count=len(st.session_state.secilen_listesi)
