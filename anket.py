@@ -31,20 +31,20 @@ def verileri_yukle():
 
     tr_films = []
     api_key = "8265bd1679663a7ea12ac168da84d2e8"
-    for page in range(1, 101):
+    for page in range(1, 151):
         tr_url = f"https://api.themoviedb.org/3/discover/movie?api_key={api_key}&with_original_language=tr&page={page}&sort_by=vote_count.desc"
         try:
             data = requests.get(tr_url).json().get('results', [])
             for m in data:
                 tr_films.append({
                     'title': f"{m['title']} ({m['release_date'][:4]})" if m.get('release_date') else m['title'],
-                    'genres': 'Drama|Comedy',
+                    'genres': 'Drama|Crime|Thriller|Comedy',
                     'IMDb_Rating': m['vote_average'],
                     'Votes': m['vote_count'],
                     'Year': int(m['release_date'][:4]) if m.get('release_date') else 0
                 })
         except: break
-        if len(tr_films) >= 2000: break
+        if len(tr_films) >= 2500: break
 
     df = pd.concat([df, pd.DataFrame(tr_films)], ignore_index=True).drop_duplicates('title')
     return df
@@ -70,16 +70,17 @@ def onerileri_guncelle():
         f_t = '|'.join(st.session_state.ana_türler)
         
     aday = df[df['genres'].str.contains(f_t, na=False) & (~df['title'].isin(st.session_state.secilen_listesi))]
-    y_f = (aday['Year'] >= (g_yil - 3)) & (aday['Votes'] >= 10) 
-    e_f = (aday['Year'] < (g_yil - 3)) & (aday['Votes'] >= 20)
-    aday = aday[(y_f | e_f) & (aday['IMDb_Rating'] >= 5.0)]
+    y_f = (aday['Year'] >= (g_yil - 3)) & (aday['Votes'] >= 5) 
+    e_f = (aday['Year'] < (g_yil - 3)) & (aday['Votes'] >= 10)
+    aday = aday[(y_f | e_f) & (aday['IMDb_Rating'] >= 4.0)]
     
     if len(aday) < 12:
         aday = df[~df['title'].isin(st.session_state.secilen_listesi)].sort_values('Votes', ascending=False).head(100)
     st.session_state.rastgele_filmler = aday.sample(min(12, len(aday))).to_dict('records')
 
-@st.dialog("🎬 Kurulum")
+@st.dialog("🎬 Başla")
 def kurulum_ekrani():
+    st.write("Favori türlerinizi seçin:")
     s_t = []
     c1, c2 = st.columns(2)
     for i, (tr, en) in enumerate(TUR_HARITASI.items()):
@@ -142,6 +143,6 @@ if cnt >= 20:
             with t_cols[i]:
                 st.markdown(f"#### 🎭 {tur}")
                 t_a = df[df['genres'].str.contains(tur, na=False) & (~df['title'].isin(st.session_state.secilen_listesi))]
-                res = t_a[((t_a['Year'] >= g_yil-3) & (t_a['Votes'] >= 10)) | ((t_a['Year'] < g_yil-3) & (t_a['Votes'] >= 20))]
-                for _, row in res[res['IMDb_Rating'] >= 5.0].sort_values(['IMDb_Rating', 'Votes'], ascending=False).head(3).iterrows():
+                res = t_a[((t_a['Year'] >= g_yil-3) & (t_a['Votes'] >= 5)) | ((t_a['Year'] < g_yil-3) & (t_a['Votes'] >= 10))]
+                for _, row in res[res['IMDb_Rating'] >= 4.0].sort_values(['IMDb_Rating', 'Votes'], ascending=False).head(3).iterrows():
                     st.write(f"🔹 {row['title']} (⭐{row['IMDb_Rating']})")
