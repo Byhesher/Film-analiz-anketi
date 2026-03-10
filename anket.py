@@ -17,10 +17,25 @@ div[data-testid="stVerticalBlock"] > div > div > div > div { padding:0.4rem !imp
 """, unsafe_allow_html=True)
 
 @st.cache_data
+def tmdb_poster_getir(imdb_id):
+    try:
+        url=f"https://api.themoviedb.org/3/find/tt{str(imdb_id).zfill(7)}?api_key=8265bd1679663a7ea12ac168da84d2e8&external_source=imdb_id"
+        data=requests.get(url).json()
+        results=data.get("movie_results",[])
+        if results:
+            poster=results[0].get("poster_path")
+            if poster:
+                return "https://image.tmdb.org/t/p/w500"+poster
+    except:
+        pass
+    return "https://via.placeholder.com/300x450?text=Poster"
+
+@st.cache_data
 def verileri_yukle():
     url="https://files.grouplens.org/datasets/movielens/ml-latest-small.zip"
     r=requests.get(url)
     z=zipfile.ZipFile(io.BytesIO(r.content))
+
     df_m=pd.read_csv(z.open('ml-latest-small/movies.csv'))
     df_l=pd.read_csv(z.open('ml-latest-small/links.csv'))
     df_r=pd.read_csv(z.open('ml-latest-small/ratings.csv'))
@@ -32,14 +47,21 @@ def verileri_yukle():
         return title
 
     df_m['title']=df_m['title'].apply(temizle)
+
     df=df_m.merge(df_l[['movieId','imdbId']],on='movieId')
     stats=df_r.groupby('movieId').agg({'rating':['mean','count']}).reset_index()
     stats.columns=['movieId','IMDb_Rating','Votes']
     df=df.merge(stats,on='movieId')
+
     df['IMDb_Rating']=(df['IMDb_Rating']*2).round(1)
     df['Year']=df['title'].str.extract(r'\((\d{4})\)').fillna(0).astype(int)
     df['Runtime']=[random.randint(75,185) for _ in range(len(df))]
-    df['poster']="https://via.placeholder.com/300x450?text=Poster"
+
+    posters=[]
+    for imdb in df['imdbId']:
+        posters.append(tmdb_poster_getir(imdb))
+
+    df['poster']=posters
 
     tr_films=[]
     api_key="8265bd1679663a7ea12ac168da84d2e8"
@@ -135,7 +157,11 @@ for i,f in enumerate(st.session_state.rastgele_filmler):
 
         with st.container(border=True):
 
-            st.image(f['poster'],use_container_width=True)
+            poster=f.get("poster")
+            if not poster or poster==0:
+                poster="https://via.placeholder.com/300x450?text=Poster"
+
+            st.image(poster,use_container_width=True)
 
             st.markdown(f"<p style='font-size:110%; font-weight:600;'>{f['title']}</p>",unsafe_allow_html=True)
 
