@@ -10,9 +10,6 @@ st.markdown("""
 <style>
     .stImage img { margin-bottom: -10px !important; cursor: pointer; }
     .css-1n76uvr { gap: 2px !important; } 
-    .poster-container {position:relative; display:inline-block; margin-bottom:-10px;}
-    .poster-label {position:absolute; top:0; left:0; background:rgba(255,0,0,0.6); color:white; font-weight:bold; padding:2px 6px; border-radius:4px;}
-    .poster-button {position:absolute; top:0; left:0; width:100%; height:100%; border:none; background:none; cursor:pointer;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -68,6 +65,7 @@ with st.sidebar:
     if count >= 20:
         if st.button("🚀 ANALİZİ BAŞLAT", use_container_width=True):
             st.session_state.analiz_modu = True
+    st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🗑️ Seçilenleri Temizle", use_container_width=True):
         st.session_state.secilen_listesi = []
         st.session_state.rastgele_filmler = []
@@ -138,19 +136,9 @@ if st.session_state.analiz_modu:
     for i, f in enumerate(adaylar.to_dict('records')):
         with cols[i%5]:
             poster_url = get_single_poster(f['imdbId'])
-            st.markdown(f"""
-                <div style="position:relative; width:200px;">
-                    <img src="{poster_url}" width="200">
-                    <form action="">
-                        <button name="film" value="{f['title']}" style="
-                            position:absolute; top:0; left:0; width:100%; height:100%; 
-                            border:none; background:none; cursor:pointer;">
-                        </button>
-                    </form>
-                </div>
-            """, unsafe_allow_html=True)
-            st.markdown(f"**{f['title']}**")
-            st.caption(f"⭐ {f['IMDb_Rating']} | {f['Tavsiye Durumu']}")
+            st.image(poster_url, width=200, use_column_width=False, output_format="PNG",
+                     caption=f"⭐ {f['IMDb_Rating']} | {f['Tavsiye Durumu']}",
+                     on_click=afise_tikla, args=(f['title'],))
     st.header("📊 Sinema Kimliğiniz")
     t_c = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
     t_c.columns = ['Tür', 'Adet']
@@ -169,6 +157,7 @@ else:
             afise_tikla(f)
         if st.button("🔄 Önerileri Yenile", use_container_width=True):
             yenile()
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🗑️ Seçilenleri Temizle"):
             st.session_state.secilen_listesi = []
             yenile()
@@ -176,16 +165,6 @@ else:
         for i, f in enumerate(st.session_state.rastgele_filmler):
             with cols[i % 5]:
                 poster_url = get_single_poster(f['imdbId'])
-                st.markdown(f"""
-                    <div style="position:relative; width:200px;">
-                        <img src="{poster_url}" width="200">
-                        <form action="">
-                            <button name="film" value="{f['title']}" style="
-                                position:absolute; top:0; left:0; width:100%; height:100%; 
-                                border:none; background:none; cursor:pointer;">
-                            </button>
-                        </form>
-                    </div>
-                """, unsafe_allow_html=True)
-                st.markdown(f"**{f['title']}**")
-                st.caption(f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk")
+                st.image(poster_url, width=200, use_column_width=False, output_format="PNG",
+                         caption=f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk",
+                         on_click=afise_tikla, args=(f['title'],))
