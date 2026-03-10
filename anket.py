@@ -8,8 +8,7 @@ st.set_page_config(page_title="Sinema Profil Analizi", layout="wide", page_icon=
 
 st.markdown("""
 <style>
-    .stButton button { border-radius: 20px; transition: 0.3s; }
-    .stButton button:hover { background-color: #ff4b4b; color: white; }
+    .stImage img { margin-bottom: 4px !important; cursor: pointer; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -18,19 +17,15 @@ def verileri_yukle():
     url = "https://files.grouplens.org/datasets/movielens/ml-latest-small.zip"
     r = requests.get(url)
     z = zipfile.ZipFile(io.BytesIO(r.content))
-
     df_m = pd.read_csv(z.open('ml-latest-small/movies.csv'))
     df_l = pd.read_csv(z.open('ml-latest-small/links.csv'))
     df_r = pd.read_csv(z.open('ml-latest-small/ratings.csv'))
-
     def temizle(title):
         match = re.search(r'^(.*),\s(The|A|An)\s(\(\d{4}\))$', title)
         if match: return f"{match.group(2)} {match.group(1)} {match.group(3)}"
         return title
-
     df_m['title'] = df_m['title'].apply(temizle)
     df = df_m.merge(df_l[['movieId', 'imdbId']], on='movieId')
-
     stats = df_r.groupby('movieId').agg({'rating': ['mean', 'count']}).reset_index()
     stats.columns = ['movieId', 'IMDb_Rating', 'Votes']
     df = df.merge(stats, on='movieId')
@@ -50,7 +45,6 @@ def get_single_poster(imdb_id):
     return "https://via.placeholder.com/300x450?text=Film+Afisi"
 
 df = verileri_yukle()
-
 if 'secilen_listesi' not in st.session_state: st.session_state.secilen_listesi = []
 if 'rastgele_filmler' not in st.session_state: st.session_state.rastgele_filmler = []
 if 'analiz_modu' not in st.session_state: st.session_state.analiz_modu = False
@@ -63,9 +57,9 @@ with st.sidebar:
     f_sure = st.slider("Maksimum Süre (dk)", 60, 240, 180)
     st.divider()
     count = len(st.session_state.secilen_listesi)
-    st.metric("Seçilen Film", f"{count} / 10")
-    st.progress(min(count/10, 1.0))
-    if count >= 10:
+    st.metric("Seçilen Film", f"{count} / 20")
+    st.progress(min(count/20, 1.0))
+    if count >= 20:
         if st.button("🚀 ANALİZİ BAŞLAT", use_container_width=True):
             st.session_state.analiz_modu = True
 
@@ -101,84 +95,79 @@ def yenile():
 if not st.session_state.rastgele_filmler:
     yenile()
 
-tab1, tab2 = st.tabs(["🎯 Film Seçimi", "📊 Profilim"])
+if st.session_state.analiz_modu:
+    secilen_df = df[df['title'].isin(st.session_state.secilen_listesi)]
+    secilen_turler = set(t for g in secilen_df['genres'].dropna() for t in g.split('|'))
+    imdb_avg = secilen_df['IMDb_Rating'].mean()
+    runtime_avg = secilen_df['Runtime'].mean()
+    adaylar = df[~df['title'].isin(st.session_state.secilen_listesi)].copy()
 
-with tab1:
-    def multiselect_guncelle():
-        yeni_secim = st.session_state.m_secim
-        yeni_eklendi = False
-        for f in yeni_secim:
-            if f not in st.session_state.secilen_listesi:
-                st.session_state.secilen_listesi.append(f)
-                yeni_eklendi = True
-        if yeni_eklendi:
+    def benzerlik(film):
+        turler = set(str(film['genres']).split('|'))
+        tur_skor = len(secilen_turler.intersection(turler)) / max(len(secilen_turler),1)
+        imdb_skor = 1 - abs(film['IMDb_Rating'] - imdb_avg) / 10
+        sure_skor = 1 - abs(film['Runtime'] - runtime_avg) / 160
+        return 0.6 * tur_skor + 0.3 * imdb_skor + 0.1 * sure_skor
+
+    adaylar['Benzerlik'] = adaylar.apply(benzerlik, axis=1)
+    adaylar = adaylar.sort_values('Benzerlik', ascending=False).head(20)
+
+    def tavsiye(skor):
+        if skor > 0.7: return "🔥 Kesinlikle izlemelisiniz"
+        elif skor > 0.5: return "⭐ İzlemelisiniz"
+        else: return "🔹 Bakmaya değer"
+
+    adaylar['Tavsiye Durumu'] = adaylar['Benzerlik'].apply(tavsiye)
+    adaylar['Link'] = "https://www.imdb.com/title/tt" + adaylar['imdbId'].astype(str).str.zfill(7)
+
+    st.header("🎯 Size Özel Film Önerileri")
+    st.dataframe(adaylar[['title','IMDb_Rating','Tavsiye Durumu','Link']], use_container_width=True)
+else:
+    tab1, tab2 = st.tabs(["🎯 Film Seçimi", "📊 Profilim"])
+    with tab1:
+        def multiselect_guncelle():
+            yeni_secim = st.session_state.m_secim
+            yeni_eklendi = False
+            for f in yeni_secim:
+                if f not in st.session_state.secilen_listesi:
+                    st.session_state.secilen_listesi.append(f)
+                    yeni_eklendi = True
+            if yeni_eklendi:
+                yenile()
+            st.experimental_rerun()
+
+        m_secim = st.multiselect(
+            "Film Ara ve Ekle:",
+            options=temp_df['title'].tolist(),
+            default=[],
+            key="m_secim",
+            on_change=multiselect_guncelle
+        )
+
+        if st.button("🔄 Önerileri Yenile", use_container_width=True):
             yenile()
-        st.experimental_rerun()
+            st.rerun()
 
-    m_secim = st.multiselect(
-        "Film Ara ve Ekle:",
-        options=temp_df['title'].tolist(),
-        default=[],
-        key="m_secim",
-        on_change=multiselect_guncelle
-    )
-
-    col_refresh = st.columns(1)[0]
-    if st.button("🔄 Önerileri Yenile", use_container_width=True):
-        yenile()
-        st.rerun()
-
-    cols = st.columns(5, gap="small")
-    for i, f in enumerate(st.session_state.rastgele_filmler):
-        with cols[i % 5]:
-            poster_url = get_single_poster(f['imdbId'])
-            st.image(poster_url, width=200)
-            st.markdown(f"**{f['title']}**")
-            st.caption(f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk")
-            if st.button("Seç", key=f"btn_{f['movieId']}"):
-                if f['title'] not in st.session_state.secilen_listesi:
-                    st.session_state.secilen_listesi.append(f['title'])
-                    yenile()
-                    st.rerun()
-
-with tab2:
-    if st.session_state.analiz_modu and len(st.session_state.secilen_listesi) >= 20:
-        secilen_df = df[df['title'].isin(st.session_state.secilen_listesi)]
-        secilen_turler = set(t for g in secilen_df['genres'].dropna() for t in g.split('|'))
-        imdb_avg = secilen_df['IMDb_Rating'].mean()
-        runtime_avg = secilen_df['Runtime'].mean()
-        adaylar = df[~df['title'].isin(st.session_state.secilen_listesi)].copy()
-
-        def benzerlik(film):
-            turler = set(str(film['genres']).split('|'))
-            tur_skor = len(secilen_turler.intersection(turler)) / max(len(secilen_turler),1)
-            imdb_skor = 1 - abs(film['IMDb_Rating'] - imdb_avg) / 10
-            sure_skor = 1 - abs(film['Runtime'] - runtime_avg) / 160
-            return 0.6 * tur_skor + 0.3 * imdb_skor + 0.1 * sure_skor
-
-        adaylar['Benzerlik'] = adaylar.apply(benzerlik, axis=1)
-        adaylar = adaylar.sort_values('Benzerlik', ascending=False).head(20)
-
-        def tavsiye(skor):
-            if skor > 0.7: return "🔥 Kesinlikle izlemelisiniz"
-            elif skor > 0.5: return "⭐ İzlemelisiniz"
-            else: return "🔹 Bakmaya değer"
-
-        adaylar['Tavsiye Durumu'] = adaylar['Benzerlik'].apply(tavsiye)
-        adaylar['Link'] = "https://www.imdb.com/title/tt" + adaylar['imdbId'].astype(str).str.zfill(7)
-
-        st.header("🎯 Size Özel Film Önerileri")
-        st.dataframe(adaylar[['title','IMDb_Rating','Tavsiye Durumu','Link']], use_container_width=True)
-
-    elif len(st.session_state.secilen_listesi) > 0:
-        s_df = df[df['title'].isin(st.session_state.secilen_listesi)]
-        t_c = pd.Series([t for g in s_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
-        t_c.columns = ['Tür', 'Adet']
-
-        st.header("✨ Sinema Kimliğiniz")
-        fig = px.pie(t_c, values='Adet', names='Tür', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.info(f"Favori türünüz: **{t_c.iloc[0]['Tür']}**. Bu türe ait filmler profilinizin %{int(t_c.iloc[0]['Adet']/t_c['Adet'].sum()*100)}'ini oluşturuyor.")
-    else:
-        st.warning("Analiz için henüz film seçmediniz.")
+        cols = st.columns(5, gap="small")
+        for i, f in enumerate(st.session_state.rastgele_filmler):
+            with cols[i % 5]:
+                poster_url = get_single_poster(f['imdbId'])
+                if st.button(f"", key=f"poster_{f['movieId']}"):
+                    if f['title'] not in st.session_state.secilen_listesi:
+                        st.session_state.secilen_listesi.append(f['title'])
+                        yenile()
+                        st.rerun()
+                st.image(poster_url, width=200)
+                st.markdown(f"**{f['title']}**", unsafe_allow_html=True)
+                st.caption(f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk")
+    with tab2:
+        if len(st.session_state.secilen_listesi) > 0:
+            s_df = df[df['title'].isin(st.session_state.secilen_listesi)]
+            t_c = pd.Series([t for g in s_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
+            t_c.columns = ['Tür', 'Adet']
+            st.header("✨ Sinema Kimliğiniz")
+            fig = px.pie(t_c, values='Adet', names='Tür', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+            st.plotly_chart(fig, use_container_width=True)
+            st.info(f"Favori türünüz: **{t_c.iloc[0]['Tür']}**. Bu türe ait filmler profilinizin %{int(t_c.iloc[0]['Adet']/t_c['Adet'].sum()*100)}'ini oluşturuyor.")
+        else:
+            st.warning("Analiz için henüz film seçmediniz.")
