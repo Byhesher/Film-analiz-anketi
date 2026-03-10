@@ -56,25 +56,17 @@ if 'analiz_modu' not in st.session_state: st.session_state.analiz_modu = False
 
 st.title("🎥 Sinema Profil Analizi")
 
-with st.sidebar:
-    st.header("🛠️ Filtreler")
-    f_imdb = st.slider("Minimum IMDb", 0.0, 10.0, 5.0)
-    f_sure = st.slider("Maksimum Süre (dk)", 60, 240, 180)
-    st.divider()
-    count = len(st.session_state.secilen_listesi)
-    st.metric("Seçilen Film", f"{count} / 20")
-    st.progress(min(count/20, 1.0))
-    st.write("") 
-    if st.button("🧹 Clear Seçilenleri", use_container_width=True):
-        st.session_state.secilen_listesi = []
-        st.session_state.rastgele_filmler = []
-        st.session_state.analiz_modu = False
-    st.write("") 
-    if count >= 20:
-        if st.button("🚀 ANALİZİ BAŞLAT", use_container_width=True):
-            st.session_state.analiz_modu = True
 
-temp_df = df[(df['IMDb_Rating'] >= f_imdb) & (df['Runtime'] <= f_sure)]
+count = len(st.session_state.secilen_listesi)
+st.markdown(f"<div style='font-size:20px; font-weight:bold'>🎬 Seçilen Film: {count} / 20</div>", unsafe_allow_html=True)
+
+
+if st.button("🧹 Clear Seçilenleri", use_container_width=True):
+    st.session_state.secilen_listesi = []
+    st.session_state.rastgele_filmler = []
+    st.session_state.analiz_modu = False
+
+temp_df = df.copy()
 
 def yenile():
     adaylar = temp_df[~temp_df['title'].isin(st.session_state.secilen_listesi)]
@@ -89,6 +81,7 @@ def afise_tikla(film_adi):
         yenile()
 
 if st.session_state.analiz_modu:
+ 
     secilen_df = df[df['title'].isin(st.session_state.secilen_listesi)]
     secilen_tur = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().idxmax()
     imdb_avg = secilen_df['IMDb_Rating'].mean()
@@ -121,9 +114,9 @@ if st.session_state.analiz_modu:
     for i, f in enumerate(adaylar.to_dict('records')):
         with cols[i%5]:
             poster_url = get_single_poster(f['imdbId'])
-            st.markdown(f'<div class="poster-container"><img src="{poster_url}" width="160" onclick="window.location.reload();"></div>', unsafe_allow_html=True)
             if st.button(f"{f['title']}", key=f"poster_btn_{f['movieId']}", on_click=afise_tikla, args=(f['title'],)):
                 pass
+            st.markdown(f'<div class="poster-container"><img src="{poster_url}" width="160"></div>', unsafe_allow_html=True)
             st.caption(f"⭐ {f['IMDb_Rating']} | {f['Tavsiye Durumu']}")
 
     st.header("📊 Sinema Kimliğiniz")
@@ -143,6 +136,7 @@ else:
                 yenile()
         if st.button("🔄 Önerileri Yenile", use_container_width=True):
             yenile()
+       
         cols = st.columns(5, gap="small")
         for i, f in enumerate(st.session_state.rastgele_filmler):
             with cols[i % 5]:
@@ -151,3 +145,11 @@ else:
                 if st.button(f"{f['title']}", key=f"poster_btn_{f['movieId']}", on_click=afise_tikla, args=(f['title'],)):
                     pass
                 st.caption(f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk")
+
+        
+        if count >= 20:
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<center>", unsafe_allow_html=True)
+            if st.button("🚀 ANALİZİ BAŞLAT", use_container_width=False):
+                st.session_state.analiz_modu = True
+            st.markdown("</center>", unsafe_allow_html=True)
