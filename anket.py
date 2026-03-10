@@ -3,6 +3,7 @@ import pandas as pd
 import requests, zipfile, io, re
 import plotly.express as px
 from datetime import datetime
+import random
 
 st.set_page_config(page_title="Sinema Profil Analizi", layout="wide", page_icon="🎬")
 
@@ -64,6 +65,10 @@ TUR_HARITASI = {
 if 'kurulum_tamam' not in st.session_state: st.session_state.kurulum_tamam = False
 if 'secilen_listesi' not in st.session_state: st.session_state.secilen_listesi = []
 if 'rastgele_filmler' not in st.session_state: st.session_state.rastgele_filmler = []
+if 'karisik_liste' not in st.session_state:
+    l = df['title'].tolist()
+    random.shuffle(l)
+    st.session_state.karisik_liste = l
 
 def onerileri_guncelle():
     aday = df[~df['title'].isin(st.session_state.secilen_listesi)].sort_values('Votes', ascending=False).head(300)
@@ -86,8 +91,7 @@ if not st.session_state.kurulum_tamam:
     st.stop()
 
 st.subheader("🔍 Manuel Film Arama")
-a_h = df.sort_values(['Votes', 'IMDb_Rating'], ascending=False)['title'].tolist()
-manuel_secim = st.multiselect("Film ismini buraya yazarak aratın:", options=a_h)
+manuel_secim = st.multiselect("Film ismini buraya yazarak aratın (Yerli ve yabancı filmler karışıktır):", options=st.session_state.karisik_liste)
 if st.button("Seçilenleri Listeye Ekle", use_container_width=True):
     if manuel_secim:
         for m in manuel_secim:
