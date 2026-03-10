@@ -124,6 +124,14 @@ if st.session_state.analiz_modu:
 
     st.header("🎯 Size Özel Film Önerileri")
     st.dataframe(adaylar[['title','IMDb_Rating','Tavsiye Durumu','Link']], use_container_width=True)
+
+    st.header("✨ Sinema Kimliğiniz")
+    t_c = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
+    t_c.columns = ['Tür', 'Adet']
+    fig = px.pie(t_c, values='Adet', names='Tür', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+    st.plotly_chart(fig, use_container_width=True)
+    st.info(f"Favori türünüz: **{t_c.iloc[0]['Tür']}**. Bu türe ait filmler profilinizin %{int(t_c.iloc[0]['Adet']/t_c['Adet'].sum()*100)}'ini oluşturuyor.")
+
 else:
     tab1, tab2 = st.tabs(["🎯 Film Seçimi", "📊 Profilim"])
     with tab1:
@@ -150,11 +158,12 @@ else:
         for i, f in enumerate(st.session_state.rastgele_filmler):
             with cols[i % 5]:
                 poster_url = get_single_poster(f['imdbId'])
-                if st.image(poster_url, width=200, output_format="auto"):
+                if st.button(f"{f['title']}", key=f"poster_{f['movieId']}"):
                     if f['title'] not in st.session_state.secilen_listesi:
                         st.session_state.secilen_listesi.append(f['title'])
                         yenile()
                         st.experimental_rerun()
+                st.image(poster_url, width=200)
                 st.markdown(f"**{f['title']}**", unsafe_allow_html=True)
                 st.caption(f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk")
 
