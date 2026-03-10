@@ -85,21 +85,27 @@ if not st.session_state.kurulum_tamam:
                 st.rerun()
     st.stop()
 
-a_h = df.sort_values(['Votes', 'IMDb_Rating'], ascending=False)['title'].tolist()
-secilen_yeni = st.multiselect(
-    "🔍 Film Ara ve Seç:", 
-    options=a_h, 
-    default=st.session_state.secilen_listesi
-)
-
-if secilen_yeni != st.session_state.secilen_listesi:
-    st.session_state.secilen_listesi = secilen_yeni
+with st.form("film_formu", clear_on_submit=False):
+    st.subheader("🔍 Film Arama ve Toplu Seçim")
+    a_h = df.sort_values(['Votes', 'IMDb_Rating'], ascending=False)['title'].tolist()
+    
+    secilen_yeni = st.multiselect(
+        "Filmleri arayın ve ekleyin:", 
+        options=a_h, 
+        default=st.session_state.secilen_listesi
+    )
+    
+    submitted = st.form_submit_button("Seçilenleri Onayla ve Listeyi Güncelle", use_container_width=True)
+    if submitted:
+        st.session_state.secilen_listesi = secilen_yeni
+        onerileri_guncelle()
+        st.rerun()
 
 st.divider()
 
 col1, col2 = st.columns([3, 1])
-col1.subheader("🎲 Hızlı Seçim Önerileri")
-if col2.button("🔄 Listeyi Yenile"):
+col1.subheader("🎲 Önerilen Popüler Filmler")
+if col2.button("🔄 Önerileri Yenile"):
     onerileri_guncelle()
     st.rerun()
 
@@ -114,13 +120,13 @@ for i, f in enumerate(st.session_state.rastgele_filmler):
                     st.session_state.secilen_listesi.append(f['title'])
                     st.rerun()
 
-st.sidebar.title("📊 İlerleme")
+st.sidebar.title("📊 Analiz Durumu")
 count = len(st.session_state.secilen_listesi)
-st.sidebar.metric("Seçilen Film", f"{count} / 20")
+st.sidebar.metric("Seçilen", f"{count} / 20")
 st.sidebar.progress(min(count/20, 1.0))
 
 if count >= 20:
-    if st.sidebar.button("🚀 Analizi Başlat", use_container_width=True):
+    if st.sidebar.button("🚀 Analizi Çalıştır", use_container_width=True):
         s_df = df[df['title'].isin(st.session_state.secilen_listesi)]
         t_c = pd.Series([t for g in s_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
         t_c.columns = ['Tür', 'Adet']
@@ -138,3 +144,5 @@ if count >= 20:
                 res = t_a[((t_a['Year'] >= g_yil-3) & (t_a['Votes'] >= 5)) | ((t_a['Year'] < g_yil-3) & (t_a['Votes'] >= 10))]
                 for _, row in res[res['IMDb_Rating'] >= 4.0].sort_values(['IMDb_Rating', 'Votes'], ascending=False).head(3).iterrows():
                     st.write(f"🔹 {row['title']} (⭐{row['IMDb_Rating']})")
+else:
+    st.sidebar.info(f"Analiz için {20 - count} film daha seçmelisiniz.")
