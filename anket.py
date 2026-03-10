@@ -8,7 +8,7 @@ st.set_page_config(page_title="Sinema Profil Analizi", layout="wide", page_icon=
 
 st.markdown("""
 <style>
-    .stImage img { margin-bottom: 4px !important; cursor: pointer; }
+    .stImage img { margin-bottom: -12px !important; cursor: pointer; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -20,10 +20,12 @@ def verileri_yukle():
     df_m = pd.read_csv(z.open('ml-latest-small/movies.csv'))
     df_l = pd.read_csv(z.open('ml-latest-small/links.csv'))
     df_r = pd.read_csv(z.open('ml-latest-small/ratings.csv'))
+
     def temizle(title):
         match = re.search(r'^(.*),\s(The|A|An)\s(\(\d{4}\))$', title)
         if match: return f"{match.group(2)} {match.group(1)} {match.group(3)}"
         return title
+
     df_m['title'] = df_m['title'].apply(temizle)
     df = df_m.merge(df_l[['movieId', 'imdbId']], on='movieId')
     stats = df_r.groupby('movieId').agg({'rating': ['mean', 'count']}).reset_index()
@@ -125,24 +127,20 @@ if st.session_state.analiz_modu:
 else:
     tab1, tab2 = st.tabs(["🎯 Film Seçimi", "📊 Profilim"])
     with tab1:
-        def multiselect_guncelle():
-            yeni_secim = st.session_state.m_secim
-            yeni_eklendi = False
-            for f in yeni_secim:
-                if f not in st.session_state.secilen_listesi:
-                    st.session_state.secilen_listesi.append(f)
-                    yeni_eklendi = True
-            if yeni_eklendi:
+        def ekle_film(film_adi):
+            if film_adi not in st.session_state.secilen_listesi:
+                st.session_state.secilen_listesi.append(film_adi)
                 yenile()
-            st.experimental_rerun()
+                st.experimental_rerun()
 
         m_secim = st.multiselect(
             "Film Ara ve Ekle:",
             options=temp_df['title'].tolist(),
             default=[],
-            key="m_secim",
-            on_change=multiselect_guncelle
+            key="m_secim"
         )
+        for f in m_secim:
+            ekle_film(f)
 
         if st.button("🔄 Önerileri Yenile", use_container_width=True):
             yenile()
@@ -152,14 +150,14 @@ else:
         for i, f in enumerate(st.session_state.rastgele_filmler):
             with cols[i % 5]:
                 poster_url = get_single_poster(f['imdbId'])
-                if st.button(f"", key=f"poster_{f['movieId']}"):
+                if st.image(poster_url, width=200, output_format="auto"):
                     if f['title'] not in st.session_state.secilen_listesi:
                         st.session_state.secilen_listesi.append(f['title'])
                         yenile()
-                        st.rerun()
-                st.image(poster_url, width=200)
+                        st.experimental_rerun()
                 st.markdown(f"**{f['title']}**", unsafe_allow_html=True)
                 st.caption(f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk")
+
     with tab2:
         if len(st.session_state.secilen_listesi) > 0:
             s_df = df[df['title'].isin(st.session_state.secilen_listesi)]
