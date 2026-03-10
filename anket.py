@@ -8,211 +8,129 @@ st.set_page_config(page_title="Sinema Profil Analizi", layout="wide", page_icon=
 
 st.markdown("""
 <style>
-.stMultiSelect div[data-baseweb="select"] { min-height:45px; }
-.stButton button { font-size:0.75rem !important; padding:0.1rem 0.4rem !important; min-height:25px; }
-.stMarkdown p { font-size:0.8rem !important; line-height:1.2 !important; margin-bottom:4px !important; }
-div[data-testid="column"] { padding:0.15rem !important; }
-div[data-testid="stVerticalBlock"] > div > div > div > div { padding:0.4rem !important; border-radius:10px; border:1px solid #333; }
+    .stButton button { border-radius: 20px; transition: 0.3s; }
+    .stButton button:hover { background-color: #ff4b4b; color: white; }
+    .movie-card img { width: 75%; height: auto; }
 </style>
 """, unsafe_allow_html=True)
 
 @st.cache_data
 def verileri_yukle():
+    url = "https://files.grouplens.org/datasets/movielens/ml-latest-small.zip"
+    r = requests.get(url)
+    z = zipfile.ZipFile(io.BytesIO(r.content))
 
-    url="https://files.grouplens.org/datasets/movielens/ml-latest-small.zip"
-    r=requests.get(url)
-    z=zipfile.ZipFile(io.BytesIO(r.content))
-
-    df_m=pd.read_csv(z.open('ml-latest-small/movies.csv'))
-    df_l=pd.read_csv(z.open('ml-latest-small/links.csv'))
-    df_r=pd.read_csv(z.open('ml-latest-small/ratings.csv'))
+    df_m = pd.read_csv(z.open('ml-latest-small/movies.csv'))
+    df_l = pd.read_csv(z.open('ml-latest-small/links.csv'))
+    df_r = pd.read_csv(z.open('ml-latest-small/ratings.csv'))
 
     def temizle(title):
-        match=re.search(r'^(.*),\s(The|A|An)\s(\(\d{4}\))$',title)
-        if match:
-            return f"{match.group(2)} {match.group(1)} {match.group(3)}"
+        match = re.search(r'^(.*),\s(The|A|An)\s(\(\d{4}\))$', title)
+        if match: return f"{match.group(2)} {match.group(1)} {match.group(3)}"
         return title
 
-    df_m['title']=df_m['title'].apply(temizle)
+    df_m['title'] = df_m['title'].apply(temizle)
+    df = df_m.merge(df_l[['movieId', 'imdbId']], on='movieId')
 
-    df=df_m.merge(df_l[['movieId','imdbId']],on='movieId')
-
-    stats=df_r.groupby('movieId').agg({'rating':['mean','count']}).reset_index()
-    stats.columns=['movieId','IMDb_Rating','Votes']
-    df=df.merge(stats,on='movieId')
-
-    df['IMDb_Rating']=(df['IMDb_Rating']*2).round(1)
-
-    df['Year']=df['title'].str.extract(r'\((\d{4})\)').fillna(0).astype(int)
-
-    df['Runtime']=[random.randint(75,185) for _ in range(len(df))]
-
-    def poster_getir(imdb_id):
-        try:
-            url=f"https://api.themoviedb.org/3/find/tt{str(imdb_id).zfill(7)}?api_key=8265bd1679663a7ea12ac168da84d2e8&external_source=imdb_id"
-            data=requests.get(url).json()
-            res=data.get("movie_results",[])
-            if res:
-                p=res[0].get("poster_path")
-                if p:
-                    return "https://image.tmdb.org/t/p/w500"+p
-        except:
-            pass
-        return "https://via.placeholder.com/300x450?text=Poster"
-
-    df['poster']=[poster_getir(i) for i in df['imdbId']]
-
-    api_key="8265bd1679663a7ea12ac168da84d2e8"
-    tr_films=[]
-
-    tr_url=f"https://api.themoviedb.org/3/discover/movie?api_key={api_key}&with_original_language=tr&language=tr-TR&page=1&sort_by=vote_count.desc"
-
-    try:
-        data=requests.get(tr_url).json().get('results',[])
-        for m in data:
-            poster="https://image.tmdb.org/t/p/w500"+m['poster_path'] if m.get('poster_path') else "https://via.placeholder.com/300x450?text=Poster"
-            tr_films.append({
-                'title':f"{m['title']} ({m['release_date'][:4]})" if m.get('release_date') else m['title'],
-                'genres':'Drama|Crime|Thriller|Comedy',
-                'IMDb_Rating':m['vote_average'],
-                'Votes':m['vote_count'],
-                'Year':int(m['release_date'][:4]) if m.get('release_date') else 0,
-                'Runtime':random.randint(90,150),
-                'poster':poster
-            })
-    except:
-        pass
-
-    df=pd.concat([df,pd.DataFrame(tr_films)],ignore_index=True).drop_duplicates('title')
+    stats = df_r.groupby('movieId').agg({'rating': ['mean', 'count']}).reset_index()
+    stats.columns = ['movieId', 'IMDb_Rating', 'Votes']
+    df = df.merge(stats, on='movieId')
+    df['IMDb_Rating'] = (df['IMDb_Rating'] * 2).round(1)
+    df['Year'] = df['title'].str.extract(r'\((\d{4})\)').fillna(0).astype(int)
+    df['Runtime'] = [random.randint(80, 160) for _ in range(len(df))]
 
     return df
 
-df=verileri_yukle()
+def get_single_poster(imdb_id):
+    api_key = "8265bd1679663a7ea12ac168da84d2e8"
+    try:
+        url = f"https://api.themoviedb.org/3/find/tt{str(imdb_id).zfill(7)}?api_key={api_key}&external_source=imdb_id"
+        res = requests.get(url).json().get("movie_results", [])
+        if res and res[0].get("poster_path"):
+            return "https://image.tmdb.org/t/p/w500" + res[0]["poster_path"]
+    except: pass
+    return "https://via.placeholder.com/300x450?text=Film+Afisi"
 
-TUR_HARITASI={
-"Hepsi":"All",
-"Aksiyon":"Action",
-"Macera":"Adventure",
-"Animasyon":"Animation",
-"Komedi":"Comedy",
-"Suç":"Crime",
-"Dram":"Drama",
-"Korku":"Horror",
-"Gizem":"Mystery",
-"Romantik":"Romance",
-"Bilim Kurgu":"Sci-Fi",
-"Gerilim":"Thriller"
-}
+df = verileri_yukle()
 
-if 'secilen_listesi' not in st.session_state:
-    st.session_state.secilen_listesi=[]
+if 'secilen_listesi' not in st.session_state: st.session_state.secilen_listesi = []
+if 'rastgele_filmler' not in st.session_state: st.session_state.rastgele_filmler = []
 
-def onerileri_guncelle(kaynak_df):
-
-    aday=kaynak_df[~kaynak_df['title'].isin(st.session_state.secilen_listesi)]
-    aday=aday[aday['IMDb_Rating']>=6.0]
-
-    if len(aday)>=25:
-        st.session_state.rastgele_filmler=aday.sample(25).to_dict('records')
-    else:
-        st.session_state.rastgele_filmler=aday.sample(len(aday)).to_dict('records')
-
-st.markdown("<h1 style='font-size:90%;'>🎥 Sinema Profil Analizi</h1>",unsafe_allow_html=True)
-
-st.write("### 🎭 Tür Seçimi")
-
-secili_tur_tr=st.pills("Türler",options=list(TUR_HARITASI.keys()),default="Hepsi",selection_mode="single")
+st.title("🎥 Sinema Profil Analizi")
 
 with st.sidebar:
-
     st.header("🛠️ Filtreler")
+    f_imdb = st.slider("Minimum IMDb", 0.0, 10.0, 5.0)
+    f_sure = st.slider("Maksimum Süre (dk)", 60, 240, 180)
 
-    f_imdb=st.slider("Minimum IMDb",0.0,10.0,6.0)
+    st.divider()
+    count = len(st.session_state.secilen_listesi)
+    st.metric("Seçilen Film", f"{count} / 10")
+    st.progress(min(count/10, 1.0))
 
-    f_sure=st.slider("Maksimum Süre (dk)",60,240,180)
+    if count >= 10:
+        if st.button("🚀 ANALİZİ BAŞLAT", use_container_width=True):
+            st.session_state.analiz_modu = True
 
-temp_df=df.copy()
+temp_df = df[(df['IMDb_Rating'] >= f_imdb) & (df['Runtime'] <= f_sure)]
 
-if secili_tur_tr!="Hepsi":
-    temp_df=temp_df[temp_df['genres'].str.contains(TUR_HARITASI[secili_tur_tr],na=False)]
+def yenile():
+    if st.session_state.secilen_listesi:
+        secilen_df = df[df['title'].isin(st.session_state.secilen_listesi)]
+        secilen_turler = set(t for g in secilen_df['genres'].dropna() for t in g.split('|'))
+        adaylar = temp_df[~temp_df['title'].isin(st.session_state.secilen_listesi)]
+      
+        adaylar = adaylar[adaylar['genres'].apply(lambda x: bool(secilen_turler.intersection(set(str(x).split('|')))))]
+        if len(adaylar) < 15:
+            adaylar = temp_df[~temp_df['title'].isin(st.session_state.secilen_listesi)]
+    else:
+        adaylar = temp_df[~temp_df['title'].isin(st.session_state.secilen_listesi)]
+    st.session_state.rastgele_filmler = adaylar.sample(min(len(adaylar), 15)).to_dict('records')
 
-temp_df=temp_df[(temp_df['IMDb_Rating']>=f_imdb)&(temp_df['Runtime']<=f_sure)]
+if not st.session_state.rastgele_filmler:
+    yenile()
 
-if 'rastgele_filmler' not in st.session_state:
-    onerileri_guncelle(temp_df)
+tab1, tab2 = st.tabs(["🎯 Film Seçimi", "📊 Profilim"])
 
-onerileri_guncelle(temp_df)
+with tab1:
+    col_search, col_refresh = st.columns([4, 1])
+    with col_search:
+        m_secim = st.multiselect("Film Ara ve Ekle:", options=temp_df['title'].tolist())
+    with col_refresh:
+        if st.button("🔄 Önerileri Yenile", use_container_width=True):
+            yenile()
+            st.rerun()
 
-st.subheader("🔍 Hızlı Arama")
+    if st.button("Seçilenleri Listeye Ekle"):
+        for m in m_secim:
+            if m not in st.session_state.secilen_listesi:
+                st.session_state.secilen_listesi.append(m)
+        yenile()
+        st.rerun()
 
-m_secim=st.multiselect("Film ara:",options=temp_df['title'].tolist())
-
-if st.button("Seçilenleri Ekle",key="manual_add",use_container_width=True):
-
-    for m in m_secim:
-
-        if m not in st.session_state.secilen_listesi:
-            st.session_state.secilen_listesi.append(m)
-
-    onerileri_guncelle(temp_df)
-
-    st.rerun()
-
-st.divider()
-
-st.subheader("🎲 Önerilenler")
-
-cols=st.columns(5)
-
-for i,f in enumerate(st.session_state.rastgele_filmler):
-
-    with cols[i%5]:
-
-        with st.container(border=True):
-
-            poster=f.get("poster")
-
-            if not poster:
-                poster="https://via.placeholder.com/300x450?text=Poster"
-
-            st.image(poster,use_container_width=True)
-
-            st.markdown(f"<p style='font-size:110%; font-weight:600;'>{f['title']}</p>",unsafe_allow_html=True)
-
-            st.caption(f"⭐ {f['IMDb_Rating']} | ⏳ {f['Runtime']} dk")
-
-            if st.button("Seç ✅",key=f"btn_{i}_{f['title']}",use_container_width=True):
-
+    cols = st.columns(5)
+    for i, f in enumerate(st.session_state.rastgele_filmler):
+        with cols[i % 5]:
+            poster_url = get_single_poster(f['imdbId'])
+            st.image(poster_url, width=150)
+            st.markdown(f"**{f['title']}**")
+            st.caption(f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk")
+            if st.button("Seç", key=f"btn_{f['movieId']}"):
                 if f['title'] not in st.session_state.secilen_listesi:
-
                     st.session_state.secilen_listesi.append(f['title'])
-
-                    onerileri_guncelle(temp_df)
-
+                    yenile()
                     st.rerun()
 
-count=len(st.session_state.secilen_listesi)
-
-st.sidebar.divider()
-
-st.sidebar.metric("Seçilen",f"{count} / 20")
-
-st.sidebar.progress(min(count/20,1.0))
-
-if count>=20:
-
-    if st.sidebar.button("🚀 ANALİZİ BAŞLAT",use_container_width=True):
-
-        s_df=df[df['title'].isin(st.session_state.secilen_listesi)]
-
-        t_c=pd.Series([t for g in s_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
-
-        t_c.columns=['Tür','Adet']
+with tab2:
+    if len(st.session_state.secilen_listesi) > 0:
+        s_df = df[df['title'].isin(st.session_state.secilen_listesi)]
+        t_c = pd.Series([t for g in s_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
+        t_c.columns = ['Tür', 'Adet']
 
         st.header("✨ Sinema Kimliğiniz")
+        fig = px.pie(t_c, values='Adet', names='Tür', hole=0.4, color_discrete_sequence=px.colors.sequential.RdBu)
+        st.plotly_chart(fig, use_container_width=True)
 
-        l,r=st.columns(2)
-
-        l.plotly_chart(px.pie(t_c.head(6),values='Adet',names='Tür',hole=0.4),use_container_width=True)
-
-        r.success(f"En Sevdiğiniz Tür: {t_c.iloc[0]['Tür']}")
+        st.info(f"Favori türünüz: **{t_c.iloc[0]['Tür']}**. Bu türe ait filmler profilinizin %{int(t_c.iloc[0]['Adet']/t_c['Adet'].sum()*100)}'ini oluşturuyor.")
+    else:
+        st.warning("Analiz için henüz film seçmediniz.") 
