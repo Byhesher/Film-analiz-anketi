@@ -11,7 +11,7 @@ st.markdown("""
     .css-1n76uvr {gap: 2px !important;}
     .poster-card {position: relative; display: inline-block; text-align:center; margin-bottom:-10px;}
     .poster-card img {width:180px; cursor:pointer;}
-    .poster-label {position:absolute; top:0; left:0; background:rgba(255,0,0,0.6); color:white; font-weight:bold; padding:2px 6px; border-radius:4px;}
+    .poster-button {width:180px; margin-top:4px; padding:4px; font-weight:bold; background-color:#ff4b4b; color:white; border:none; border-radius:6px; cursor:pointer;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -143,9 +143,9 @@ if st.session_state.analiz_modu:
     for i,f in enumerate(adaylar.to_dict('records')):
         with cols[i%5]:
             poster_url = get_single_poster(f['imdbId'])
-            if st.button("", key=f"poster_{f['movieId']}", on_click=afise_tikla, args=(f['title'],)):
-                pass
             st.image(poster_url,width=180)
+            if st.button(f"{f['title']}", key=f"poster_{f['movieId']}_btn", on_click=afise_tikla, args=(f['title'],), help=f"Seç: {f['title']}", css_class="poster-button"):
+                pass
 
     st.header("📊 Sinema Kimliğiniz")
     t_c = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
@@ -171,6 +171,6 @@ else:
         for i,f in enumerate(st.session_state.rastgele_filmler):
             with cols[i%5]:
                 poster_url = get_single_poster(f['imdbId'])
-                if st.button("", key=f"poster_{f['movieId']}_select", on_click=afise_tikla, args=(f['title'],)):
-                    pass
                 st.image(poster_url,width=180)
+                if st.button(f"{f['title']}", key=f"poster_{f['movieId']}_btn2", on_click=afise_tikla, args=(f['title'],), css_class="poster-button"):
+                    pass
