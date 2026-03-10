@@ -66,8 +66,8 @@ if 'secilen_listesi' not in st.session_state: st.session_state.secilen_listesi =
 if 'rastgele_filmler' not in st.session_state: st.session_state.rastgele_filmler = []
 
 def onerileri_guncelle():
-    aday = df[~df['title'].isin(st.session_state.secilen_listesi)].sort_values('Votes', ascending=False).head(200)
-    st.session_state.rastgele_filmler = aday.sample(min(12, len(aday))).to_dict('records')
+    aday = df[~df['title'].isin(st.session_state.secilen_listesi)].sort_values('Votes', ascending=False).head(300)
+    st.session_state.rastgele_filmler = aday.sample(min(20, len(aday))).to_dict('records')
 
 st.title("🎥 Sinema Profil Analizi")
 
@@ -85,45 +85,38 @@ if not st.session_state.kurulum_tamam:
                 st.rerun()
     st.stop()
 
-with st.form("film_formu", clear_on_submit=False):
-    st.subheader("🔍 Film Arama ve Toplu Seçim")
-    a_h = df.sort_values(['Votes', 'IMDb_Rating'], ascending=False)['title'].tolist()
-    
-    secilen_yeni = st.multiselect(
-        "Filmleri arayın ve ekleyin:", 
-        options=a_h, 
-        default=st.session_state.secilen_listesi
-    )
-    
-    submitted = st.form_submit_button("Seçilenleri Onayla ve Listeyi Güncelle", use_container_width=True)
-    if submitted:
-        st.session_state.secilen_listesi = secilen_yeni
-        onerileri_guncelle()
-        st.rerun()
+st.subheader("🎭 İzlediğiniz Filmleri Seçin")
 
-st.divider()
-
-col1, col2 = st.columns([3, 1])
-col1.subheader("🎲 Önerilen Popüler Filmler")
-if col2.button("🔄 Önerileri Yenile"):
-    onerileri_guncelle()
-    st.rerun()
-
-cols = st.columns(4)
+cols = st.columns(5)
 for i, f in enumerate(st.session_state.rastgele_filmler):
-    with cols[i % 4]:
+    with cols[i % 5]:
         with st.container(border=True):
             st.write(f"**{f['title']}**")
             st.caption(f"⭐ {f['IMDb_Rating']} | 📅 {f['Year']}")
-            if st.button("Ekle +", key=f"btn_{i}_{f['title']}", use_container_width=True):
+            if st.button("Seç ✅", key=f"btn_{i}_{f['title']}", use_container_width=True):
                 if f['title'] not in st.session_state.secilen_listesi:
                     st.session_state.secilen_listesi.append(f['title'])
+                    onerileri_guncelle()
                     st.rerun()
 
-st.sidebar.title("📊 Analiz Durumu")
+st.divider()
+
+with st.expander("🔍 Aradığım Filmi Listede Bulamadım (Manuel Arama)"):
+    a_h = df.sort_values(['Votes', 'IMDb_Rating'], ascending=False)['title'].tolist()
+    manuel_secim = st.multiselect("Film ismini yazın:", options=a_h)
+    if st.button("Listeye Ekle"):
+        for m in manuel_secim:
+            if m not in st.session_state.secilen_listesi:
+                st.session_state.secilen_listesi.append(m)
+        st.rerun()
+
+st.sidebar.title("📊 İlerleme")
 count = len(st.session_state.secilen_listesi)
 st.sidebar.metric("Seçilen", f"{count} / 20")
 st.sidebar.progress(min(count/20, 1.0))
+st.sidebar.write("### Son Eklenenler:")
+for s in st.session_state.secilen_listesi[-5:]:
+    st.sidebar.caption(f"• {s}")
 
 if count >= 20:
     if st.sidebar.button("🚀 Analizi Çalıştır", use_container_width=True):
