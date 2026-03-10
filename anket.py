@@ -65,7 +65,7 @@ with st.sidebar:
     st.metric("Seçilen Film",f"{count} / 20")
     st.progress(min(count/20,1.0))
     st.markdown("<br>",unsafe_allow_html=True)
-    col1, col2 = st.columns([1,1])
+    col1,col2 = st.columns([1,1])
     with col1:
         if count >= 20:
             if st.button("🚀 ANALİZİ BAŞLAT",use_container_width=True):
@@ -144,9 +144,8 @@ if st.session_state.analiz_modu:
         with cols[i%5]:
             poster_url = get_single_poster(f['imdbId'])
             st.image(poster_url,width=180)
-            if st.button(f"{f['title']}", key=f"poster_{f['movieId']}_btn", on_click=afise_tikla, args=(f['title'],), help=f"Seç: {f['title']}", css_class="poster-button"):
-                pass
-
+            st.button(f"{f['title']}", key=f"poster_{f['movieId']}_btn2", on_click=afise_tikla, args=(f['title'],))
+            
     st.header("📊 Sinema Kimliğiniz")
     t_c = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
     t_c.columns=['Tür','Adet']
@@ -172,5 +171,4 @@ else:
             with cols[i%5]:
                 poster_url = get_single_poster(f['imdbId'])
                 st.image(poster_url,width=180)
-                if st.button(f"{f['title']}", key=f"poster_{f['movieId']}_btn2", on_click=afise_tikla, args=(f['title'],), css_class="poster-button"):
-                    pass
+                st.button(f"{f['title']}", key=f"poster_{f['movieId']}_btn3", on_click=afise_tikla, args=(f['title'],))
