@@ -73,6 +73,7 @@ with st.sidebar:
         st.session_state.secilen_listesi=[]
         st.session_state.rastgele_filmler=[]
         st.session_state.analiz_modu=False
+        st.experimental_rerun()
 
 temp_df = df[(df['IMDb_Rating']>=f_imdb)&(df['Runtime']<=f_sure)]
 
@@ -110,6 +111,7 @@ def afise_tikla(film_adi):
     if film_adi not in st.session_state.secilen_listesi:
         st.session_state.secilen_listesi.append(film_adi)
         yenile()
+        st.experimental_rerun()
 
 if st.session_state.analiz_modu:
     secilen_df = df[df['title'].isin(st.session_state.secilen_listesi)]
@@ -139,9 +141,11 @@ if st.session_state.analiz_modu:
     for i,f in enumerate(adaylar.to_dict('records')):
         with cols[i%5]:
             poster_url = get_single_poster(f['imdbId'])
-            if st.button(f"Seç: {f['title']}", key=f"btn_{f['movieId']}"):
-                afise_tikla(f['title'])
-            st.image(poster_url,width=180,use_column_width=False,caption=f"⭐ {f['IMDb_Rating']} | {f['Tavsiye Durumu']}")
+            st.image(poster_url,width=180,use_column_width=False,
+                     caption=f"⭐ {f['IMDb_Rating']} | {f['Tavsiye Durumu']}",
+                     output_format="PNG", clamp=False,
+                     channels="RGB", use_container_width=False,
+                     on_click=afise_tikla, args=(f['title'],))
 
     st.header("📊 Sinema Kimliğiniz")
     t_c = pd.Series([t for g in secilen_df['genres'].dropna() for t in g.split('|')]).value_counts().reset_index()
@@ -159,17 +163,21 @@ else:
         )
         for f in m_secim:
             afise_tikla(f)
+        st.markdown("<br>",unsafe_allow_html=True)
         if st.button("🔄 Önerileri Yenile",use_container_width=True):
             yenile()
         st.markdown("<br>",unsafe_allow_html=True)
-        if st.button("🗑️ Seçilenleri Temizle"):
+        if st.button("🗑️ Seçilenleri Temizle",use_container_width=True):
             st.session_state.secilen_listesi=[]
-            yenile()
+            st.session_state.rastgele_filmler=[]
+            st.session_state.analiz_modu=False
+            st.experimental_rerun()
         cols = st.columns(5,gap="small")
         for i,f in enumerate(st.session_state.rastgele_filmler):
             with cols[i%5]:
                 poster_url = get_single_poster(f['imdbId'])
-                if st.button(f"Seç: {f['title']}", key=f"btn_{f['movieId']}"):
-                    afise_tikla(f['title'])
                 st.image(poster_url,width=180,use_column_width=False,
-                                  caption=f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk")
+                         caption=f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk",
+                         output_format="PNG", clamp=False,
+                         channels="RGB", use_container_width=False,
+                         on_click=afise_tikla, args=(f['title'],))
