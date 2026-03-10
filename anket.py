@@ -73,23 +73,38 @@ with st.sidebar:
 
 temp_df = df[(df['IMDb_Rating'] >= f_imdb) & (df['Runtime'] <= f_sure)]
 
+
 def yenile():
-    if st.session_state.secilen_listesi:
-        secilen_df = df[df['title'].isin(st.session_state.secilen_listesi)]
-        secilen_turler = set(t for g in secilen_df['genres'].dropna() for t in g.split('|'))
-        imdb_min = max(secilen_df['IMDb_Rating'].min()-1, 0)
-        imdb_max = min(secilen_df['IMDb_Rating'].max()+1, 10)
-        sure_min = max(secilen_df['Runtime'].min()-20, 0)
-        sure_max = min(secilen_df['Runtime'].max()+20, 240)
+    if not st.session_state.secilen_listesi:
         adaylar = temp_df[~temp_df['title'].isin(st.session_state.secilen_listesi)]
-        adaylar = adaylar[adaylar['genres'].apply(lambda x: bool(secilen_turler.intersection(set(str(x).split('|')))))]
-        adaylar = adaylar[(adaylar['IMDb_Rating']>=imdb_min) & (adaylar['IMDb_Rating']<=imdb_max)]
-        adaylar = adaylar[(adaylar['Runtime']>=sure_min) & (adaylar['Runtime']<=sure_max)]
-        if len(adaylar) < 10:
-            adaylar = temp_df[~temp_df['title'].isin(st.session_state.secilen_listesi)]
-    else:
-        adaylar = temp_df[~temp_df['title'].isin(st.session_state.secilen_listesi)]
-    st.session_state.rastgele_filmler = adaylar.sample(min(len(adaylar), 15)).to_dict('records')
+        st.session_state.rastgele_filmler = adaylar.sample(min(len(adaylar), 15)).to_dict('records')
+        return
+
+    secilen_df = df[df['title'].isin(st.session_state.secilen_listesi)]
+    turler = [t for g in secilen_df['genres'].dropna() for t in g.split('|')]
+    tur_df = pd.Series(turler).value_counts(normalize=True).reset_index()
+    tur_df.columns = ['Tür', 'Ağırlık']
+
+    adaylar = temp_df[~temp_df['title'].isin(st.session_state.secilen_listesi)].copy()
+    secilen_filmsayisi = min(15, len(adaylar))
+    secilen_filmler = []
+
+    for _, row in tur_df.iterrows():
+        tur = row['Tür']
+        agirlik = row['Ağırlık']
+        n_sec = max(1, round(secilen_filmsayisi * agirlik))
+        tur_aday = adaylar[adaylar['genres'].str.contains(tur, na=False)]
+        tur_aday = tur_aday[~tur_aday['title'].isin([f['title'] for f in secilen_filmler])]
+        if len(tur_aday) > 0:
+            secilen_filmler.extend(tur_aday.sample(min(n_sec, len(tur_aday))).to_dict('records'))
+
+    kalan = secilen_filmsayisi - len(secilen_filmler)
+    if kalan > 0:
+        geri_kalan = adaylar[~adaylar['title'].isin([f['title'] for f in secilen_filmler])]
+        if len(geri_kalan) > 0:
+            secilen_filmler.extend(geri_kalan.sample(min(kalan, len(geri_kalan))).to_dict('records'))
+
+    st.session_state.rastgele_filmler = secilen_filmler
 
 if not st.session_state.rastgele_filmler:
     yenile()
@@ -110,17 +125,20 @@ with tab1:
             st.rerun()
 
     if st.button("Seçilenleri Listeye Ekle"):
+        yeni_eklendi = False
         for m in m_secim:
             if m not in st.session_state.secilen_listesi:
                 st.session_state.secilen_listesi.append(m)
-        yenile()
+                yeni_eklendi = True
+        if yeni_eklendi:
+            yenile()
         st.rerun()
 
     cols = st.columns(5, gap="small")
     for i, f in enumerate(st.session_state.rastgele_filmler):
         with cols[i % 5]:
             poster_url = get_single_poster(f['imdbId'])
-            st.image(poster_url, width=165)
+            st.image(poster_url, width=180)
             st.markdown(f"**{f['title']}**")
             st.caption(f"⭐ {f['IMDb_Rating']} | {f['Runtime']} dk")
             if st.button("Seç", key=f"btn_{f['movieId']}"):
@@ -128,6 +146,7 @@ with tab1:
                     st.session_state.secilen_listesi.append(f['title'])
                     yenile()
                     st.rerun()
+
 
 with tab2:
     if st.session_state.analiz_modu and len(st.session_state.secilen_listesi) >= 20:
